@@ -59,9 +59,10 @@ class DataItem():
             self.image_data = fromfile(file=input_image,dtype=imtype,count=self.img_dim[0]*self.img_dim[1]).reshape(input_image_dimension)
 
     def read_tag(self):
-        with open(os.path.join(self.data_root,'{}_manual_lgc.star'.format(self.data_name)),'r') as input_tag:
+        with open(os.path.join(self.data_root, '{}_manual_lgc.star'.format(self.data_name)), 'r') as input_tag:
             for line in input_tag.readlines():
-                tmp_info = line.split(' ')
+                line = line[:-1]
+                tmp_info = [x for x in line.split(' ') if x != '' ]
                 if len(tmp_info) == 5:
                     self.tag.append((float(tmp_info[0]), float(tmp_info[1])))
 
