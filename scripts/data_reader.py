@@ -3,6 +3,7 @@
 from numpy import *
 import struct
 import os
+import matplotlib.pyplot as plt
 
 import slist
 
@@ -62,4 +63,48 @@ class DataItem():
             for line in input_tag.read().split('\n'):
                 tmp_info = filter(lambda x: x, line.split(' '))
                 if len(tmp_info) == 5:
-                    self.tag.append((tmp_info[0], tmp_info[1]))
+                    self.tag.append((float(tmp_info[0]), float(tmp_info[1])))
+
+    def generate_image(self):
+        self.show_result(self.tag)
+
+    def show_result(self, points, edge_x=10, edge_y=10):
+        # circles = []
+        rects = []
+        for pnt in points:
+            # circles.append(plt.Circle(pnt, 10, facecolor='none',alpha=1))
+            rects.append(plt.Rectangle((pnt[0]-int(edge_x/2),pnt[1]-int(edge_y/2)),edge_x, edge_y,facecolor='none',alpha=1))
+        fig = plt.figure()
+        plt.imshow(self.image_data, cmap=plt.cm.gray)
+        # for circle in circles:
+        #     fig.add_subplot(111).add_artist(circle)
+        for rect in rects:
+            fig.add_subplot(111).add_artist(rect)
+        plt.show()
+
+    def contain_tag(self, range_x, range_y):
+        range_x
+        for tag in self.tag:
+            if tag[0] in range_x and tag[1] in range_y:
+                return True
+
+    def generate_feature(self, dim_x, dim_y, step_x, step_y):
+        def validate():
+            return (pnt[0]<self.img_dim[0]-dim_x) and (pnt[1]<self.img_dim[1]-dim_y)
+        def cut():
+            tmp_feature = []
+            for i in range(pnt[0],pnt[0]+dim_x):
+                for j in range(pnt[1],pnt[1]+dim_y):
+                    tmp_feature.append(self.image_data[i][j])
+
+            self.feature_set.append(array(tmp_feature))
+            self.label_set.append(self.contain_tag(range(pnt[0],pnt[0]+dim_x),range(pnt[1],pnt[1]+dim_y)))
+        pnt = [0,0]
+        self.feature_set = []
+        self.label_set = []
+        while validate():
+            while validate():
+                cut()
+                pnt[1] = pnt[1] + step_y
+            pnt[0] = pnt[0] + step_x
+            pnt[1] = 0
