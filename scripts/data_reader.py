@@ -5,7 +5,7 @@ import struct
 import os
 import matplotlib.pyplot as plt
 
-import slist
+from . import slist
 
 class Dataset(slist.SList):
     def __init__(self, data_root):
@@ -15,7 +15,7 @@ class Dataset(slist.SList):
         for item in os.listdir(self.data_root):
             file_info = item.split('.')
             if not len(file_info) == 2:
-                print 'Please check file: {}'.format(item)
+                print('Please check file: {}'.format(item))
                 return
             data_name = file_info[0]
             file_type = file_info[1]
@@ -60,8 +60,8 @@ class DataItem():
 
     def read_tag(self):
         with open(os.path.join(self.data_root,'{}_manual_lgc.star'.format(self.data_name)),'r') as input_tag:
-            for line in input_tag.read().split('\n'):
-                tmp_info = filter(lambda x: x, line.split(' '))
+            for line in input_tag.readlines():
+                tmp_info = line.split(' ')
                 if len(tmp_info) == 5:
                     self.tag.append((float(tmp_info[0]), float(tmp_info[1])))
 
