@@ -5,7 +5,10 @@ import struct
 import os
 import matplotlib.pyplot as plt
 
+import random
+import scipy.spatial
 from . import slist
+from . import CONFIG
 
 class Dataset(slist.SList):
     def __init__(self, data_root):
@@ -88,6 +91,31 @@ class DataItem():
         for tag in self.tag:
             if tag[0] in range_x and tag[1] in range_y:
                 return True
+
+    def is_positive(self, center_x, center_y):
+        nearest = self.tag_tree.query((center_x, center_y))
+        distance = ((nearest[0]-center_x) ** 2 + (nearest[1]-center_y) ** 2) ** (1/2)
+        return distance <= CONFIG.THRESHOLD
+
+    def generate_training_set(self):
+
+        step = CONFIG.STEP
+        changes = [(0, 0), (-step * 2, 0), (-step, 0), (-step, step),
+                  (0, step * 2), (0, step), (step, step),
+                  (step * 2, 0), (step, 0), (step, -step),
+                  (0, -step * 2), (0, -step), (-step, -step)]
+
+        positive_set = []
+        for change in changes:
+            positive_set.extend([((x[0]+change[0],x[1]+change[1]), True) for x in self.tag])
+        negative_set = []
+        temp = sorted(self.tag)
+        while len(negative_set) != len(positive_set):
+            x = random.randrange(CONFIG.HALF_AREA_SIZE, self.img_dim[0]-CONFIG.HALF_AREA_SIZE)
+            y = random.randrange(CONFIG.HALF_AREA_SIZE, self.img_dim[1]-CONFIG.HALF_AREA_SIZE)
+            if self.is_positive(x,y):
+                continue
+            negative_set.append(((x,y), False))
 
     def generate_feature(self, dim_x, dim_y, step_x, step_y):
         def validate():
