@@ -42,7 +42,7 @@ class Analyzer:
 			else:
 				data_set.append((cut_mat(self.MAT_SIZE[0], self.MAT_SIZE[1]), 0, pnt))
 
-		print '{}/{}'.format(data_set.filter_by(lambda x: x[1]==1).count(),data_set.count())
+		print('{}/{}'.format(data_set.filter_by(lambda x: x[1] == 1).count(), data_set.count()))
 		return data_set.filter_by(lambda x: len(x[0]) == (2*self.MAT_SIZE[0]+1)*(2*self.MAT_SIZE[1]+1))
 
 	def clustering(self):
@@ -81,7 +81,7 @@ class Analyzer:
 		for index, tag in enumerate(training_result):
 			if tag == training_set[index][1]:
 				hit += 1
-		print float(hit) / float(len(training_set))
+		print(float(hit) / float(len(training_set)))
 
 		pca_test = pca.transform([item[0] for item in test_set])
 		# test_set = test_set.map(lambda x: (x[0]-img_average, x[1]))
@@ -91,7 +91,7 @@ class Analyzer:
 		for index, tag in enumerate(predicted):
 			if tag == test_set[index][1]:
 				hit += 1
-		print float(hit)/float(len(test_set))
+		print(float(hit) / float(len(test_set)))
 
 	def gradient(self):
 		image_data = self.training_set[0].image_data
@@ -175,14 +175,14 @@ class Analyzer:
 			predicted_tag = model.activate(pca_training[index])
 			if (predicted_tag[0]>0.5 and item[1]==1) or (predicted_tag[0]<=0.5 and item[1]==0):
 				hit += 1
-		print float(hit) / float(len(training_set))
+		print(float(hit) / float(len(training_set)))
 
 		hit = 0
 		for index, item in enumerate(test_set):
 			predicted_tag = model.activate(pca_test[index])
 			if (predicted_tag[0]>0.5 and item[1]==1) or (predicted_tag[0]<=0.5 and item[1]==0):
 				hit += 1
-		print float(hit)/float(len(test_set))
+		print(float(hit) / float(len(test_set)))
 
 	def filter(self):
 		# img_average = numpy.average(self.training_set[0].image_data)
@@ -206,10 +206,10 @@ class Analyzer:
 
 		training_feature = numpy.array(feature_set[:split])
 		training_label = numpy.array(label_set[:split])
-		print 'Size of Training Set: {}'.format(len(training_feature))
+		print('Size of Training Set: {}'.format(len(training_feature)))
 		validate_feature = numpy.array(feature_set[split:])
 		validate_label = numpy.array(label_set[split:])
-		print 'Size of Validation Set: {}'.format(len(validate_feature))
+		print('Size of Validation Set: {}'.format(len(validate_feature)))
 
 		model = svm.SVC()
 		model.fit(training_feature, training_label)
@@ -218,15 +218,14 @@ class Analyzer:
 		for index in range(len(training_result)):
 			if training_result[index] == training_label[index]:
 				hit += 1
-		print 'Training Error: {}'.format(float(hit)/float(len(training_result)))
+		print('Training Error: {}'.format(float(hit) / float(len(training_result))))
 
 		validate_result = model.predict(validate_feature)
 		hit = 0
 		for index in range(len(validate_result)):
 			if validate_result[index] == validate_label[index]:
 				hit += 1
-		print 'Validation Error: {}'.format(float(hit)/float(len(validate_result)))
-
+		print('Validation Error: {}'.format(float(hit) / float(len(validate_result))))
 
 	def main(self):
 		self.new_svm()

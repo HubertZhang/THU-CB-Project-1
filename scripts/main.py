@@ -7,7 +7,7 @@ import data_reader
 import analyzer
 
 if len(sys.argv) != 3:
-	print 'Usage: python main.py <data_path> <output_path>'
+	print('Usage: python main.py <data_path> <output_path>')
 	sys.exit(0)
 
 data_root = os.path.abspath(sys.argv[1])
@@ -19,7 +19,7 @@ testing_data = data_reader.Dataset(os.path.join(data_root, 'test'))
 testing_data.setup_dataset()
 
 if not os.path.isdir(output_path):
-	print 'Output path does not exist, create a new one.'
+	print('Output path does not exist, create a new one.')
 	os.mkdir(output_path)
 
 os.chdir(output_path)
