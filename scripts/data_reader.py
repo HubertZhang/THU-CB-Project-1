@@ -6,8 +6,8 @@ import os
 import matplotlib.pyplot as plt
 import random
 import scipy.spatial
-from . import slist
-from . import CONFIG
+import slist
+import CONFIG
 
 class Dataset(slist.SList):
     def __init__(self, data_root):
@@ -116,8 +116,8 @@ class DataItem():
 
     def is_positive(self, center_x, center_y):
         nearest = self.tag_tree.query((center_x, center_y))
-        distance = ((nearest[0]-center_x) ** 2 + (nearest[1]-center_y) ** 2) ** (1/2)
-        return distance <= CONFIG.THRESHOLD
+        distance = ((nearest[0]-center_x) ** 2 + (nearest[1]-center_y) ** 2)
+        return distance <= CONFIG.THRESHOLD*CONFIG.THRESHOLD
 
     def generate_training_set(self):
 
@@ -132,13 +132,23 @@ class DataItem():
             positive_set.extend([((x[0]+change[0],x[1]+change[1]), True) for x in self.tag])
         negative_set = []
         temp = sorted(self.tag)
-        while len(negative_set) != len(positive_set):
+        # while len(negative_set) != len(positive_set):
+        for i in range(int(len(positive_set)*1.5)):
             x = random.randrange(CONFIG.HALF_AREA_SIZE, self.img_dim[0]-CONFIG.HALF_AREA_SIZE)
             y = random.randrange(CONFIG.HALF_AREA_SIZE, self.img_dim[1]-CONFIG.HALF_AREA_SIZE)
             if self.is_positive(x,y):
                 continue
             negative_set.append(((x,y), False))
         return positive_set + negative_set
+
+    def get_window(self, pnt):
+        result = array([[0 for j in range(CONFIG.AREA_SIZE)] for i in range(CONFIG.AREA_SIZE)])
+        for i in range(CONFIG.AREA_SIZE):
+            for j in range(CONFIG.AREA_SIZE):
+                pnt_x = pnt[0]-CONFIG.HALF_AREA_SIZE+i
+                pnt_y = pnt[1]-CONFIG.HALF_AREA_SIZE+j
+                result[i][j] = self.image_data[pnt_x][pnt_y]
+        return result
 
     def generate_feature(self, dim_x, dim_y, step_x, step_y):
         def validate():

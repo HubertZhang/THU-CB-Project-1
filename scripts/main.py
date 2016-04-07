@@ -5,6 +5,7 @@ import os
 
 import data_reader
 import analyzer
+import worker
 
 if len(sys.argv) != 3:
 	print('Usage: python main.py <data_path> <output_path>')
@@ -23,7 +24,9 @@ if not os.path.isdir(output_path):
 	os.mkdir(output_path)
 
 os.chdir(output_path)
-alg = analyzer.Analyzer(training_data, testing_data)
+# alg = analyzer.Analyzer(training_data, testing_data)
+# alg.main()
+alg = worker.Worker(training_data, testing_data)
 alg.main()
 
 
