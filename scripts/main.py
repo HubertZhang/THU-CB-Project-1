@@ -34,7 +34,7 @@ def print_image(img_mat, fig_name):
 	fig = plt.figure()
 	plt.imshow(img_mat, cmap=plt.cm.gray)
 	plt.savefig(fig_name)
-	plt.clf()
+	plt.close(fig)
 
 def generate_feature(data_item):
 	def cut_mat(dim_x, dim_y):

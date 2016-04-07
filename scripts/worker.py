@@ -13,12 +13,17 @@ import CONFIG
 class Worker():
 	def __init__(self, training_set, test_set):
 		self.training_set = training_set
-		self.test_set = test_set
+		self.test_set = test_set 
+		for index in range(len(self.training_set)):
+			self.training_set[index].image_data -= np.average(self.training_set[index].image_data)
+		for index in range(len(self.test_set)):
+			self.test_set[index].image_data -= np.average(self.test_set[index].image_data)
 
 		self.LAMBDA = 1e-4
-		self.num_epochs = 10
-		self.TrainingData = range(0, int(0.8*len(training_set)))
-		self.ValidatingData = range(int(0.8*len(training_set)), len(training_set))
+		self.num_epochs = 100
+		# self.TrainingData = range(0, int(0.8*len(training_set)))
+		self.TrainingData = range(0, int(0.6*len(training_set)))
+		self.ValidatingData = range(int(0.6*len(training_set)), len(training_set))
 		self.BATCH_SIZE = 500
 
 	def main(self):
@@ -29,7 +34,7 @@ class Worker():
 		network = self.build_cnn(input_var)
 		prediction = lasagne.layers.get_output(network)
 		loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
-		loss = loss.mean() + self.LAMBDA * lasagne.regularization.regularize_network_params(network, lasagne.regularization.l2)
+		loss = loss.mean()#  + self.LAMBDA * lasagne.regularization.regularize_network_params(network, lasagne.regularization.l2)
 
 	    # Create update expressions for training, i.e., how to modify the
 	    # parameters at each training step. Here, we'll use Stochastic Gradient
@@ -64,9 +69,10 @@ class Worker():
 			start_time = time.time()
 			for batch in self.training_batch(self.TrainingData):
 				inputs, targets = batch
-				print('Batch size: {}'.format(len(inputs)))
-				train_err += train_fn(inputs, targets)
-				train_batches += 1
+				# print('Batch size: {}'.format(len(inputs)))
+				train_err += train_fn(inputs, targets) * len(inputs)
+				train_batches += len(inputs)
+				# print('Training loss: {}'.format(train_err / train_batches))
 
 	        # And a full pass over the validation data:
 			val_err = 0
@@ -74,13 +80,14 @@ class Worker():
 			val_batches = 0
 			for batch in self.training_batch(self.ValidatingData):
 				inputs, targets = batch
+				print(lasagne.layers.get_output(network, inputs))
 				err, acc = val_fn(inputs, targets)
-				val_err += err
-				val_acc += acc
-				val_batches += 1
+				val_err += err * len(inputs)
+				val_acc += acc * len(inputs)
+				val_batches += len(inputs)
 
       		# Then we print the results for this epoch:
-			print("Epoch {} of {} took {:.3f}s".format(epoch + 1, num_epochs, time.time() - start_time))
+			print("Epoch {} of {} took {:.3f}s".format(epoch + 1, self.num_epochs, time.time() - start_time))
 			print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
 			print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
 			print("  validation accuracy:\t\t{:.2f} %".format(val_acc / val_batches * 100))
@@ -131,6 +138,7 @@ class Worker():
 			targets = []
 			cnt_postive = 0
 			cnt_negative = 0
+			start_time = time.time()
 			for pnt, flag in dataset:
 				inputs.append(item.get_window(pnt))
 				if flag:
@@ -140,6 +148,7 @@ class Worker():
 					cnt_negative += 1
 					targets.append(0)
 				# targets.append(flag)
+			print('Loading feature took {:.3f}s'.format(time.time()-start_time))
 			print('Positive {}/ Negative {}'.format(cnt_postive, cnt_negative))
 			with open('inputs_{}.pkl'.format(index), 'wb') as f_out:
 				pickle.dump(inputs,f_out)
@@ -168,7 +177,7 @@ class Worker():
 	    # Convolutional layer with 32 kernels of size 5x5. Strided and padded
     	# convolutions are supported as well; see the docstring.
 		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=32, filter_size=(5, 5),
+				network, num_filters=96, filter_size=(11, 11), stride=(4,4),
 				nonlinearity=lasagne.nonlinearities.rectify,
 				W=lasagne.init.GlorotUniform())
 	    # Expert note: Lasagne provides alternative convolutional layers that
@@ -180,20 +189,20 @@ class Worker():
 
 	    # Another convolution with 32 5x5 kernels, and another 2x2 pooling:
 		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=32, filter_size=(5, 5),
+				network, num_filters=256, filter_size=(5, 5),
 				nonlinearity=lasagne.nonlinearities.rectify)
 		network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
 
 	    # Another convolution with 32 5x5 kernels, and another 2x2 pooling:
 		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=32, filter_size=(5, 5),
+				network, num_filters=384, filter_size=(3, 3),
 				nonlinearity=lasagne.nonlinearities.rectify)
 		network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
 
 	    # A fully-connected layer of 256 units with 50% dropout on its inputs:
 		network = lasagne.layers.DenseLayer(
 				lasagne.layers.dropout(network, p=.5),
-				num_units=256,
+				num_units=1024,
 				nonlinearity=lasagne.nonlinearities.rectify)
 
     	# And, finally, the 10-unit output layer with 50% dropout on its inputs:

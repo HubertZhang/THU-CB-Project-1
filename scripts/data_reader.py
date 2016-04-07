@@ -46,8 +46,7 @@ class DataItem():
 
             byte_pattern = '=' + 'l' * self.NUMBYTES1  # '=' required to get machine independent standard size
             self.img_dim = struct.unpack(byte_pattern, self.img_header1)[:3]  # (dimx,dimy,dimz)
-            self.img_type = struct.unpack(byte_pattern, self.img_header1)[
-                3]  # 0: 8-bit signed, 1:16-bit signed, 2: 32-bit float, 6: unsigned 16-bit (non-std)
+            self.img_type = struct.unpack(byte_pattern, self.img_header1)[3]  # 0: 8-bit signed, 1:16-bit signed, 2: 32-bit float, 6: unsigned 16-bit (non-std)
             if (self.img_type == 0):
                 imtype = 'b'
             elif (self.img_type == 1):
@@ -60,8 +59,7 @@ class DataItem():
                 type = 'unknown'  # should put a fail here
             input_image_dimension = (self.img_dim[1], self.img_dim[0])  # 2D images assumed
 
-            self.image_data = fromfile(file=input_image, dtype=imtype, count=self.img_dim[0] * self.img_dim[1]).reshape(
-                input_image_dimension)
+            self.image_data = fromfile(file=input_image, dtype=imtype, count=self.img_dim[0] * self.img_dim[1]).reshape(input_image_dimension)
 
     def read_tag(self):
         with open(os.path.join(self.data_root, '{}_manual_lgc.star'.format(self.data_name)), 'r') as input_tag:
@@ -122,30 +120,36 @@ class DataItem():
     def generate_training_set(self):
 
         step = CONFIG.STEP
-        changes = [(0, 0), (-step * 2, 0), (-step, 0), (-step, step),
-                  (0, step * 2), (0, step), (step, step),
-                  (step * 2, 0), (step, 0), (step, -step),
-                  (0, -step * 2), (0, -step), (-step, -step)]
+        # changes = [(0, 0), (-step * 2, 0), (-step, 0), (-step, step),
+        #           (0, step * 2), (0, step), (step, step),
+        #           (step * 2, 0), (step, 0), (step, -step),
+        #           (0, -step * 2), (0, -step), (-step, -step)]
+        changes = [(0,0)]
 
         positive_set = []
+        limit = CONFIG.STEP * 2 + CONFIG.HALF_AREA_SIZE
         for change in changes:
-            positive_set.extend([((x[0]+change[0],x[1]+change[1]), True) for x in self.tag])
+            for x in self.tag:
+                if x[0]>=limit and x[0]<self.img_dim[0]-limit and x[1]>=limit and x[1]<self.img_dim[1]-limit:
+                    positive_set.append(((x[0]+change[0],x[1]+change[1]), True))
         negative_set = []
         temp = sorted(self.tag)
         # while len(negative_set) != len(positive_set):
-        for i in range(int(len(positive_set)*1.5)):
+        for i in range(int(len(positive_set)*1.2)):
             x = random.randrange(CONFIG.HALF_AREA_SIZE, self.img_dim[0]-CONFIG.HALF_AREA_SIZE)
             y = random.randrange(CONFIG.HALF_AREA_SIZE, self.img_dim[1]-CONFIG.HALF_AREA_SIZE)
             if self.is_positive(x,y):
                 continue
             negative_set.append(((x,y), False))
-        return positive_set + negative_set
+        total_set = positive_set + negative_set
+        total_set = sorted(sorted(total_set, key=lambda x: x[0][1]), key=lambda x: x[0][0])
+        return total_set
 
     def get_window(self, pnt):
         result = array([[0 for j in range(CONFIG.AREA_SIZE)] for i in range(CONFIG.AREA_SIZE)])
         for i in range(CONFIG.AREA_SIZE):
+            pnt_x = pnt[0]-CONFIG.HALF_AREA_SIZE+i
             for j in range(CONFIG.AREA_SIZE):
-                pnt_x = pnt[0]-CONFIG.HALF_AREA_SIZE+i
                 pnt_y = pnt[1]-CONFIG.HALF_AREA_SIZE+j
                 result[i][j] = self.image_data[pnt_x][pnt_y]
         return result
