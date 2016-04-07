@@ -91,6 +91,24 @@ class DataItem():
             fig.add_subplot(111).add_artist(rect)
         plt.show()
 
+    def show_training_set(self, points, edge_x=10, edge_y=10):
+        # circles = []
+        rects = []
+        for point in points:
+            pnt = point[0]
+            color = 'green' if point[1] else 'red'
+            # circles.append(plt.Circle(pnt, 10, facecolor='none',alpha=1))
+            rects.append(
+                plt.Rectangle((pnt[0] - int(edge_x / 2), pnt[1] - int(edge_y / 2)), edge_x, edge_y, facecolor='none',
+                              edgecolor=color, alpha=1))
+        fig = plt.figure()
+        plt.imshow(self.image_data, cmap=plt.cm.gray)
+        # for circle in circles:
+        #     fig.add_subplot(111).add_artist(circle)
+        for rect in rects:
+            fig.add_subplot(111).add_artist(rect)
+        plt.show()
+
     def contain_tag(self, range_x, range_y):
         for tag in self.tag:
             if tag[0] in range_x and tag[1] in range_y:
@@ -120,6 +138,7 @@ class DataItem():
             if self.is_positive(x,y):
                 continue
             negative_set.append(((x,y), False))
+        return positive_set + negative_set
 
     def generate_feature(self, dim_x, dim_y, step_x, step_y):
         def validate():
