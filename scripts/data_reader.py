@@ -109,7 +109,7 @@ class DataItem():
 
     def contain_tag(self, range_x, range_y):
         for tag in self.tag:
-            if tag[0] in range_x and tag[1] in range_y:
+            if int(tag[0]) in range_x and int(tag[1]) in range_y:
                 return True
 
     def is_positive(self, center_x, center_y):
@@ -134,11 +134,15 @@ class DataItem():
                     positive_set.append(((x[0]+change[0],x[1]+change[1]), True))
         negative_set = []
         temp = sorted(self.tag)
-        # while len(negative_set) != len(positive_set):
-        for i in range(int(len(positive_set)*1.2)):
+        counter = 0
+        while len(negative_set) != len(positive_set) and counter < len(positive_set)*10:
+        # for i in range(int(len(positive_set)*1.2)):
+            counter += 1
             x = random.randrange(CONFIG.HALF_AREA_SIZE, self.img_dim[0]-CONFIG.HALF_AREA_SIZE)
             y = random.randrange(CONFIG.HALF_AREA_SIZE, self.img_dim[1]-CONFIG.HALF_AREA_SIZE)
-            if self.is_positive(x,y):
+            # if self.is_positive(x,y):
+            #     continue
+            if self.contain_tag(range(x-CONFIG.HALF_AREA_SIZE,x+CONFIG.HALF_AREA_SIZE), range(y-CONFIG.HALF_AREA_SIZE,y+CONFIG.HALF_AREA_SIZE)):
                 continue
             negative_set.append(((x,y), False))
         total_set = positive_set + negative_set
@@ -146,7 +150,7 @@ class DataItem():
         return total_set
 
     def get_window(self, pnt):
-        return self.image_data[pnt[0]-CONFIG.HALF_AREA_SIZE:pnt[0]+CONFIG.HALF_AREA_SIZE+1, pnt[1]-CONFIG.HALF_AREA_SIZE:pnt[1]+CONFIG.HALF_AREA_SIZE+1]
+        return self.image_data[pnt[1]-CONFIG.HALF_AREA_SIZE:pnt[1]+CONFIG.HALF_AREA_SIZE+1, pnt[0]-CONFIG.HALF_AREA_SIZE:pnt[0]+CONFIG.HALF_AREA_SIZE+1]
         # result = array([[0.0 for j in range(CONFIG.AREA_SIZE)] for i in range(CONFIG.AREA_SIZE)])
         # for i in range(CONFIG.AREA_SIZE):
         #     pnt_x = pnt[0]-CONFIG.HALF_AREA_SIZE+i

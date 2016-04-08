@@ -26,12 +26,14 @@ class Worker():
 
 		self.LAMBDA = 1e-4
 		self.num_epochs = 100
-		# self.TrainingData = range(0, int(0.8*len(training_set)))
-		self.TrainingData = range(0, int(0.6*len(training_set)))
-		self.ValidatingData = range(int(0.6*len(training_set)), len(training_set))
+		self.TrainingData = range(0, int(0.8*len(training_set)))
+		self.ValidatingData = range(int(0.8*len(training_set)), len(training_set))
+		# self.TrainingData = range(0, 10)
+		# self.ValidatingData = range(len(training_set)-6, len(training_set))
 		self.BATCH_SIZE = 500
 
 	def main(self):
+		print("WINDOW SIZE: {}".format(CONFIG.AREA_SIZE))
 		# Prepare Theano variables for inputs and targets
 		input_var = T.tensor4('inputs')
 		target_var = T.ivector('targets')
@@ -97,7 +99,7 @@ class Worker():
 			for batch in self.training_batch(self.ValidatingData):
 				inputs, targets = batch
 				err, acc = val_fn(inputs, targets)
-				print(result_fn(inputs))
+				# print(result_fn(inputs))
 				val_err += err * len(inputs)
 				val_acc += acc * len(inputs)
 				val_batches += len(inputs)
@@ -133,23 +135,23 @@ class Worker():
 
 	def training_batch(self, data_slice):
 		for index in data_slice:
-			if 'inputs_{}.pkl'.format(index) in os.listdir('.'):
-				print('Use saved file.')
-				with open('inputs_{}.pkl'.format(index), 'rb') as f_in:
-					inputs = pickle.load(f_in)
-				with open('targets_{}.pkl'.format(index), 'rb') as f_in:
-					targets = pickle.load(f_in)
-				starting_pnt = 0
-				while starting_pnt + self.BATCH_SIZE < len(inputs):
-					yield np.array(inputs[starting_pnt:starting_pnt+self.BATCH_SIZE]).reshape(-1,1,CONFIG.AREA_SIZE,CONFIG.AREA_SIZE), np.array(targets[starting_pnt:starting_pnt+self.BATCH_SIZE],dtype='int32')
-					starting_pnt += self.BATCH_SIZE
-				
-				yield np.array(inputs[starting_pnt:len(inputs)]).reshape(-1, 1, CONFIG.AREA_SIZE, CONFIG.AREA_SIZE), np.array(targets[starting_pnt:len(inputs)],dtype='int32')
-				continue
+			# if 'inputs_{}.pkl'.format(index) in os.listdir('.'):
+			# 	# print('Use saved file.')
+			# 	with open('inputs_{}.pkl'.format(index), 'rb') as f_in:
+			# 		inputs = pickle.load(f_in)
+			# 	with open('targets_{}.pkl'.format(index), 'rb') as f_in:
+			# 		targets = pickle.load(f_in)
+			# 	starting_pnt = 0
+			# 	while starting_pnt + self.BATCH_SIZE < len(inputs):
+			# 		yield np.array(inputs[starting_pnt:starting_pnt+self.BATCH_SIZE]).reshape(-1,1,CONFIG.AREA_SIZE,CONFIG.AREA_SIZE), np.array(targets[starting_pnt:starting_pnt+self.BATCH_SIZE],dtype='int32')
+			# 		starting_pnt += self.BATCH_SIZE
+			# 	
+			# 	yield np.array(inputs[starting_pnt:len(inputs)]).reshape(-1, 1, CONFIG.AREA_SIZE, CONFIG.AREA_SIZE), np.array(targets[starting_pnt:len(inputs)],dtype='int32')
+			# 	continue
 
 			item = self.training_set[index]
 			dataset = item.generate_training_set()
-			print 'Length of dataset: {}'.format(len(dataset))
+			# print 'Length of dataset: {}'.format(len(dataset))
 			inputs = []
 			targets = []
 			cnt_postive = 0
@@ -164,12 +166,12 @@ class Worker():
 					cnt_negative += 1
 					targets.append(0)
 				# targets.append(flag)
-			print('Loading feature took {:.3f}s'.format(time.time()-start_time))
-			print('Positive {}/ Negative {}'.format(cnt_postive, cnt_negative))
-			with open('inputs_{}.pkl'.format(index), 'wb') as f_out:
-				pickle.dump(inputs,f_out)
-			with open('targets_{}.pkl'.format(index), 'wb') as f_out:
-				pickle.dump(targets,f_out)
+			# print('Loading feature took {:.3f}s'.format(time.time()-start_time))
+			# print('Positive {}/ Negative {}'.format(cnt_postive, cnt_negative))
+			# with open('inputs_{}.pkl'.format(index), 'wb') as f_out:
+			# 	pickle.dump(inputs,f_out)
+			# with open('targets_{}.pkl'.format(index), 'wb') as f_out:
+			# 	pickle.dump(targets,f_out)
 
 			starting_pnt = 0
 			while starting_pnt + self.BATCH_SIZE < len(inputs):
@@ -234,7 +236,7 @@ class Worker():
 				train_err += train_fn(inputs, targets) * len(inputs)
 				# print(result_fn(inputs))
 				structure = structure_fn()
-				print(inputs.shape)
+				# print(inputs.shape)
 				# for index, layer in enumerate(structure):
 				# 	print('Layer {}'.format(index))
 				# 	print('Shape: {}'.format(layer.shape))
@@ -273,7 +275,7 @@ class Worker():
 	    # Convolutional layer with 32 kernels of size 5x5. Strided and padded
     	# convolutions are supported as well; see the docstring.
 		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=32, filter_size=(5, 5),
+				network, num_filters=96, filter_size=(11, 11), stride=(4,4),
 				nonlinearity=lasagne.nonlinearities.rectify,
 				W=lasagne.init.GlorotUniform())
 	    # Expert note: Lasagne provides alternative convolutional layers that
@@ -285,20 +287,20 @@ class Worker():
 
 	    # Another convolution with 32 5x5 kernels, and another 2x2 pooling:
 		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=32, filter_size=(5, 5),
+				network, num_filters=256, filter_size=(5, 5),
 				nonlinearity=lasagne.nonlinearities.rectify)
 		network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
 
 	    # Another convolution with 32 5x5 kernels, and another 2x2 pooling:
-		# network = lasagne.layers.Conv2DLayer(
-		# 		network, num_filters=384, filter_size=(3, 3),
-		# 		nonlinearity=lasagne.nonlinearities.rectify)
-		# network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
+		network = lasagne.layers.Conv2DLayer(
+				network, num_filters=384, filter_size=(3, 3),
+				nonlinearity=lasagne.nonlinearities.rectify)
+		network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
 
 	    #  A fully-connected layer of 256 units with 50% dropout on its inputs:
 		network = lasagne.layers.DenseLayer(
 				lasagne.layers.dropout(network, p=.5),
-				num_units=256,
+				num_units=1024,
 				nonlinearity=lasagne.nonlinearities.rectify)
 
     	# And, finally, the 10-unit output layer with 50% dropout on its inputs:
