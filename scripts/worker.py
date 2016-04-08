@@ -223,6 +223,8 @@ class Worker():
 		print("Starting training...")
 	    # We iterate over epochs:
 		for epoch in range(self.num_epochs):
+			if epoch % 10 == 9:
+				np.savez('model_{}.npz'.format(epoch/10), *lasagne.layers.get_all_param_values(network))
         	# In each epoch, we do a full pass over the training data:
 			train_err = 0
 			train_batches = 0
