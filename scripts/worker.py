@@ -47,7 +47,7 @@ class Worker():
 	    # parameters at each training step. Here, we'll use Stochastic Gradient
     	# Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
 		params = lasagne.layers.get_all_params(network, trainable=True)
-		updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=0.01, momentum=0.9)
+		updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=CONFIG.LEARNING_RATE, momentum=CONFIG.MOMENTUM)
 
 	    # Create a loss expression for validation/testing. The crucial difference
     	# here is that we do a deterministic forward pass through the network,
@@ -160,8 +160,8 @@ class Worker():
 			for pnt, flag in dataset:
 				inputs.append(item.get_window(pnt))
 				if flag:
-				 	cnt_postive += 1
-				 	targets.append(1)
+					cnt_postive += 1
+					targets.append(1)
 				else:
 					cnt_negative += 1
 					targets.append(0)

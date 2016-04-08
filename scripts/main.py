@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import os
 
 import data_reader
-import analyzer
 import worker
 
 if len(sys.argv) != 3:
