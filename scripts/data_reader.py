@@ -146,13 +146,14 @@ class DataItem():
         return total_set
 
     def get_window(self, pnt):
-        result = array([[0 for j in range(CONFIG.AREA_SIZE)] for i in range(CONFIG.AREA_SIZE)])
-        for i in range(CONFIG.AREA_SIZE):
-            pnt_x = pnt[0]-CONFIG.HALF_AREA_SIZE+i
-            for j in range(CONFIG.AREA_SIZE):
-                pnt_y = pnt[1]-CONFIG.HALF_AREA_SIZE+j
-                result[i][j] = self.image_data[pnt_x][pnt_y]
-        return result
+        return self.image_data[pnt[0]-CONFIG.HALF_AREA_SIZE:pnt[0]+CONFIG.HALF_AREA_SIZE+1, pnt[1]-CONFIG.HALF_AREA_SIZE:pnt[1]+CONFIG.HALF_AREA_SIZE+1]
+        # result = array([[0.0 for j in range(CONFIG.AREA_SIZE)] for i in range(CONFIG.AREA_SIZE)])
+        # for i in range(CONFIG.AREA_SIZE):
+        #     pnt_x = pnt[0]-CONFIG.HALF_AREA_SIZE+i
+        #     for j in range(CONFIG.AREA_SIZE):
+        #         pnt_y = pnt[1]-CONFIG.HALF_AREA_SIZE+j
+        #         result[i][j] = self.image_data[pnt_x][pnt_y]
+        # return result
 
     def generate_feature(self, dim_x, dim_y, step_x, step_y):
         def validate():

@@ -28,6 +28,7 @@ os.chdir(output_path)
 # alg.main()
 alg = worker.Worker(training_data, testing_data)
 alg.main()
+# alg.main_minst()
 
 
 def print_image(img_mat, fig_name):
