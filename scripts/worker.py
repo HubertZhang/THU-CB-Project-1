@@ -6,6 +6,8 @@ import time
 import pickle
 import os
 from scipy.ndimage.filters import gaussian_filter
+import logging
+import matplotlib.pyplot as plt
 
 import data_reader
 import CONFIG
@@ -38,21 +40,21 @@ class Worker():
 		input_var = T.tensor4('inputs')
 		target_var = T.ivector('targets')
 
-		network = self.build_cnn(input_var)
-		prediction = lasagne.layers.get_output(network)
+		self.network = self.build_cnn(input_var)
+		prediction = lasagne.layers.get_output(self.network)
 		loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
 		loss = loss.mean()#  + self.LAMBDA * lasagne.regularization.regularize_network_params(network, lasagne.regularization.l2)
 
 	    # Create update expressions for training, i.e., how to modify the
 	    # parameters at each training step. Here, we'll use Stochastic Gradient
     	# Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
-		params = lasagne.layers.get_all_params(network, trainable=True)
+		params = lasagne.layers.get_all_params(self.network, trainable=True)
 		updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=CONFIG.LEARNING_RATE, momentum=CONFIG.MOMENTUM)
 
 	    # Create a loss expression for validation/testing. The crucial difference
     	# here is that we do a deterministic forward pass through the network,
     	# disabling dropout layers.
-		test_prediction = lasagne.layers.get_output(network, deterministic=True)
+		test_prediction = lasagne.layers.get_output(self.network, deterministic=True)
 		test_loss = lasagne.objectives.categorical_crossentropy(test_prediction, target_var)
 		test_loss = test_loss.mean()
     	# As a bonus, also create an expression for the classification accuracy:
@@ -64,27 +66,39 @@ class Worker():
 		train_fn = theano.function([input_var, target_var], loss, updates=updates)
 
 		result_fn = theano.function([input_var], test_prediction)
-		structure_fn = theano.function([], lasagne.layers.get_all_params(network))
+		structure_fn = theano.function([], lasagne.layers.get_all_params(self.network))
 
 	    # Compile a second function computing the validation loss and accuracy:
 		val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
 
+		accuracy = 0.
+		diff_accuracy = 0.
 	    # Finally, launch the training loop.
 		print("Starting training...")
 	    # We iterate over epochs:
 		for epoch in range(self.num_epochs):
+			if accuracy > 0.9 and diff_accuracy < 0:
+				print("Update Learning Rate.")
+				logging.info('Update Learning Rate.')
+				CONFIG.LEARNING_RATE = CONFIG.LEARNING_RATE / 2.
+				CONFIG.MOMENTUM = CONFIG.MOMENTUM / 2.
+				updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=CONFIG.LEARNING_RATE, momentum=CONFIG.MOMENTUM)
+				train_fn = theano.function([input_var, target_var], loss, updates=updates)
+
+			if epoch % 10 == 9:
+				np.savez('model_{}.npz'.format(epoch/10), *lasagne.layers.get_all_param_values(self.network))
         	# In each epoch, we do a full pass over the training data:
 			train_err = 0
 			train_batches = 0
 			start_time = time.time()
 			for batch in self.training_batch(self.TrainingData):
 				inputs, targets = batch
-				# print('Batch size: {}'.format(len(inputs)))
+				print('Batch size: {}'.format(len(inputs)))
 				# print inputs
 				# print targets
 				train_err += train_fn(inputs, targets) * len(inputs)
 				# print(result_fn(inputs))
-				structure = structure_fn()
+				# structure = structure_fn()
 				# for index, layer in enumerate(structure):
 				# 	print('Layer {}'.format(index))
 				# 	print('Shape: {}'.format(layer.shape))
@@ -104,11 +118,17 @@ class Worker():
 				val_acc += acc * len(inputs)
 				val_batches += len(inputs)
 
+			diff_accuracy = val_acc / val_batches - accuracy
+			accuracy = val_acc / val_batches
       		# Then we print the results for this epoch:
 			print("Epoch {} of {} took {:.3f}s".format(epoch + 1, self.num_epochs, time.time() - start_time))
+			logging.info("Epoch {} of {} took {:.3f}s".format(epoch + 1, self.num_epochs, time.time() - start_time))
 			print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
+			logging.info("  training loss:\t\t{:.6f}".format(train_err / train_batches))
 			print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+			logging.info("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
 			print("  validation accuracy:\t\t{:.2f} %".format(val_acc / val_batches * 100))
+			logging.info("  validation accuracy:\t\t{:.2f} %".format(val_acc / val_batches * 100))
 
 	    # After training, we compute and print the test error:
      	# test_err = 0
@@ -181,88 +201,153 @@ class Worker():
 			yield np.array(inputs[starting_pnt:len(inputs)]).reshape(-1, 1, CONFIG.AREA_SIZE, CONFIG.AREA_SIZE), np.array(targets[starting_pnt:len(inputs)],dtype='int32')
 			continue
 
-	def main_minst(self):
-		X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
+	def predict(self, img, model_name):
+		img.extend_image()
 
-		# Prepare Theano variables for inputs and targets
 		input_var = T.tensor4('inputs')
 		target_var = T.ivector('targets')
 
-		network = self.build_cnn_mnist(input_var)
-		prediction = lasagne.layers.get_output(network)
-		loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
-		loss = loss.mean()#  + self.LAMBDA * lasagne.regularization.regularize_network_params(network, lasagne.regularization.l2)
+		self.network = self.build_cnn(input_var)
+		with np.load(model_name) as f:
+		    param_values = [f['arr_%d' % i] for i in range(len(f.files))]
+		lasagne.layers.set_all_param_values(self.network, param_values)
 
-	    # Create update expressions for training, i.e., how to modify the
-	    # parameters at each training step. Here, we'll use Stochastic Gradient
-    	# Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
-		params = lasagne.layers.get_all_params(network, trainable=True)
-		updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=0.01, momentum=0.9)
+		input_pnts = []
+		mat_dim = 0
+		for i in range(CONFIG.HALF_AREA_SIZE, img.img_dim[0]-CONFIG.HALF_AREA_SIZE, CONFIG.STEP):
+		# for i in range(1000, 1500, CONFIG.STEP):
+			mat_dim += 1
+			for j in range(CONFIG.HALF_AREA_SIZE, img.img_dim[1]-CONFIG.HALF_AREA_SIZE, CONFIG.STEP):
+			# for j in range(1000, 1500, CONFIG.STEP):
+				input_pnts.append((i,j))
+		print("Total input length: {}".format(len(input_pnts)))
 
-	    # Create a loss expression for validation/testing. The crucial difference
-    	# here is that we do a deterministic forward pass through the network,
-    	# disabling dropout layers.
-		test_prediction = lasagne.layers.get_output(network, deterministic=True)
-		test_loss = lasagne.objectives.categorical_crossentropy(test_prediction, target_var)
-		test_loss = test_loss.mean()
-    	# As a bonus, also create an expression for the classification accuracy:
-		test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
-	                      dtype=theano.config.floatX)
+		test_prediction = lasagne.layers.get_output(self.network, deterministic=True)
+		predict_fn = theano.function([input_var], test_prediction)
 
-    	# Compile a function performing a training step on a mini-batch (by giving
-	    # the updates dictionary) and returning the corresponding training loss:
-		train_fn = theano.function([input_var, target_var], loss, updates=updates)
+		pos_pnt = []
+		for index in range(0, len(input_pnts), self.BATCH_SIZE):
+			print 'Batch {}'.format(index+1)
+			inputs = [img.get_window(item) for item in input_pnts[index:index+self.BATCH_SIZE]]
+			result = predict_fn(np.array(inputs).reshape(-1,1,CONFIG.AREA_SIZE,CONFIG.AREA_SIZE))
+			# print(result)
+			for tmp_index, tag in enumerate(result):
+				if np.argmax(tag) == 1:
+					pos_pnt.append((input_pnts[tmp_index+index], tag[1]))
+		print 'Positive Point: {}'.format(len(pos_pnt))
+		rects = []
+		for pnt in pos_pnt:
+			rects.append(plt.Circle(pnt[0], 20, facecolor=plt.cm.Greens(pnt[1]), alpha=0.3))
+			# rects.append(
+			# 	plt.Rectangle((pnt[0]-CONFIG.HALF_AREA_SIZE, pnt[1]-CONFIG.HALF_AREA_SIZE),
+			# 		CONFIG.AREA_SIZE, CONFIG.AREA_SIZE,
+			# 		facecolor='none', edgecolor='b', alpha=0.5))
+		for pnt in img.tag:
+			rects.append(
+				plt.Rectangle((pnt[0]-CONFIG.HALF_AREA_SIZE, pnt[1]-CONFIG.HALF_AREA_SIZE),
+					CONFIG.AREA_SIZE, CONFIG.AREA_SIZE,
+					facecolor='none', edgecolor='r', alpha=1))
 
-		result_fn = theano.function([input_var], test_prediction)
-		structure_fn = theano.function([], lasagne.layers.get_all_params(network))
+		fig = plt.figure()
+		plt.imshow(img.image_data, cmap=plt.cm.gray)
+		for rect in rects:
+			fig.add_subplot(111).add_artist(rect)
+		plt.savefig('window_predictions.png')
+		plt.close(fig)
 
-	    # Compile a second function computing the validation loss and accuracy:
-		val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
+		positive_group = []
+		for pnt in pos_pnt:
+			x, y = pnt[0]
+			flag = False
+			for index, grp in enumerate(positive_group):
+				c_x, c_y = grp[0]
+				if (x-c_x)**2 + (y-c_y)**2 < (CONFIG.STEP*3)**2:
+					weight = grp[1]
+					new_cent = (float(x+c_x*weight)/float(weight+1), float(y+c_y*weight)/float(weight+1))
+					positive_group[index] = (new_cent, weight+1, grp[2]+pnt[1])
+					flag = True
+			if not flag:
+				positive_group.append((pnt[0], 1, pnt[1]))
 
-	    # Finally, launch the training loop.
-		print("Starting training...")
-	    # We iterate over epochs:
-		for epoch in range(self.num_epochs):
-			if epoch % 10 == 9:
-				np.savez('model_{}.npz'.format(epoch/10), *lasagne.layers.get_all_param_values(network))
-        	# In each epoch, we do a full pass over the training data:
-			train_err = 0
-			train_batches = 0
-			start_time = time.time()
-			for batch in iterate_minibatches(X_train, y_train, 500, shuffle=True):
-				inputs, targets = batch
-				# print('Batch size: {}'.format(len(inputs)))
-				# for row in inputs:
-				# 	print(row)
-				# print targets
-				train_err += train_fn(inputs, targets) * len(inputs)
-				# print(result_fn(inputs))
-				structure = structure_fn()
-				# print(inputs.shape)
-				# for index, layer in enumerate(structure):
-				# 	print('Layer {}'.format(index))
-				# 	print('Shape: {}'.format(layer.shape))
-				# 	print(layer)
-				train_batches += len(inputs)
-				# print('Training loss: {}'.format(train_err / train_batches))
 
-	        # And a full pass over the validation data:
-			val_err = 0
-			val_acc = 0
-			val_batches = 0
-			for batch in iterate_minibatches(X_val, y_val, 500):
-				inputs, targets = batch
-				err, acc = val_fn(inputs, targets)
-				# print(result_fn(inputs))
-				val_err += err * len(inputs)
-				val_acc += acc * len(inputs)
-				val_batches += len(inputs)
+		cnt_positive = [0 for i in range(10)]
+		cnt_positive_confid = [0 for i in range(50)]
+		tag_flag = [[0 for i in range(len(img.tag))] for j in range(10)]
+		tag_flag_confid = [[0 for i in range(len(img.tag))] for j in range(50)]
 
-      		# Then we print the results for this epoch:
-			print("Epoch {} of {} took {:.3f}s".format(epoch + 1, self.num_epochs, time.time() - start_time))
-			print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
-			print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
-			print("  validation accuracy:\t\t{:.2f} %".format(val_acc / val_batches * 100))
+		pos_weight = []
+		pos_confid = []
+		neg_weight = []
+		neg_confid = []
+		for grp in positive_group:
+			x, y = grp[0]
+			flag = []
+			for index, pnt in enumerate(img.tag):
+				if (x-pnt[0])**2 + (y-pnt[1])**2 < (CONFIG.THRESHOLD)**2:
+					flag.append(index)
+			if flag:
+				for wt in range(10):
+					if grp[1] > wt:
+						cnt_positive[wt] += 1
+						for ind in flag:
+							tag_flag[wt][ind] = 1
+				for conf in range(50):
+					if grp[2] > conf*0.2:
+						cnt_positive_confid[conf] += 1
+						for ind in flag:
+							tag_flag_confid[conf][ind] = 1
+
+				pos_weight.append(grp[1])
+				pos_confid.append(grp[2])
+				# cnt_positive += 1
+			else:
+				neg_weight.append(grp[1])
+				neg_confid.append(grp[2])
+		for wt in range(10):
+			print("Weight Threshold {}:".format(wt))
+			print("\tPrecision: {:2f}".format(float(cnt_positive[wt])/float(len(filter(lambda x: x[1]>wt, positive_group)))))
+			print("\tRecall: {:2f}".format(np.sum(tag_flag[wt])/float(len(img.tag))))
+
+		for conf in range(50):
+			print("Confidence Threshold {:2f}:".format(conf*0.2))
+			print("\tPrecision: {:2f}".format(float(cnt_positive_confid[conf])/float(len(filter(lambda x: x[2]>conf*0.2, positive_group)))))
+			print("\tRecall: {:2f}".format(np.sum(tag_flag_confid[conf])/float(len(img.tag))))
+
+
+		fig = plt.figure()
+		rects = []
+		for pnt in img.tag:
+			rects.append(plt.Circle(pnt, 20, facecolor='g', alpha=0.5))
+		for pnt in positive_group:
+			rects.append(plt.Circle(pnt[0], 20, facecolor='b', alpha=0.5))
+		fig = plt.figure()
+		plt.imshow(img.image_data, cmap=plt.cm.gray)
+		for rect in rects:
+			fig.add_subplot(111).add_artist(rect)
+		plt.savefig('group_prediction.png')
+		plt.close(fig)
+
+
+		fig = plt.figure()
+		plt.hist(pos_weight, facecolor='g', alpha=0.5)
+		plt.hist(neg_weight, facecolor='b', alpha=0.5)
+		plt.savefig('weight_hist.png')
+		plt.close(fig)
+
+		fig = plt.figure()
+		plt.hist(pos_confid, facecolor='g', alpha=0.5)
+		plt.hist(neg_confid, facecolor='b', alpha=0.5)
+		plt.savefig('confid_hist.png')
+		plt.close(fig)
+
+	def load_model(self, model_name):
+		input_var = T.tensor4('inputs')
+		target_var = T.ivector('targets')
+
+		self.network = self.build_cnn(input_var)
+		with np.load(model_name) as f:
+		    param_values = [f['arr_%d' % i] for i in range(len(f.files))]
+		lasagne.layers.set_all_param_values(self.network, param_values)
 
 	def build_cnn(self, input_var=None):
 	    # As a third model, we'll create a CNN of two convolution + pooling stages
@@ -277,56 +362,7 @@ class Worker():
 	    # Convolutional layer with 32 kernels of size 5x5. Strided and padded
     	# convolutions are supported as well; see the docstring.
 		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=96, filter_size=(11, 11), stride=(4,4),
-				nonlinearity=lasagne.nonlinearities.rectify,
-				W=lasagne.init.GlorotUniform())
-	    # Expert note: Lasagne provides alternative convolutional layers that
-    	# override Theano's choice of which implementation to use; for details
-    	# please see http://lasagne.readthedocs.org/en/latest/user/tutorial.html.
-
-	    # Max-pooling layer of factor 2 in both dimensions:
-		network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
-
-	    # Another convolution with 32 5x5 kernels, and another 2x2 pooling:
-		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=256, filter_size=(5, 5),
-				nonlinearity=lasagne.nonlinearities.rectify)
-		network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
-
-	    # Another convolution with 32 5x5 kernels, and another 2x2 pooling:
-		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=384, filter_size=(3, 3),
-				nonlinearity=lasagne.nonlinearities.rectify)
-		network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
-
-	    #  A fully-connected layer of 256 units with 50% dropout on its inputs:
-		network = lasagne.layers.DenseLayer(
-				lasagne.layers.dropout(network, p=.5),
-				num_units=1024,
-				nonlinearity=lasagne.nonlinearities.rectify)
-
-    	# And, finally, the 10-unit output layer with 50% dropout on its inputs:
-		network = lasagne.layers.DenseLayer(
-				lasagne.layers.dropout(network, p=.5),
-				num_units=2,
-				nonlinearity=lasagne.nonlinearities.softmax)
-
-		return network
-
-	def build_cnn_mnist(self, input_var=None):
-	    # As a third model, we'll create a CNN of two convolution + pooling stages
-    	# and a fully-connected hidden layer in front of the output layer.
-
-	    # Input layer, as usual:
-		network = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
-        	                                input_var=input_var)
-	    # This time we do not apply input dropout, as it tends to work less well
-    	# for convolutional layers.
-
-	    # Convolutional layer with 32 kernels of size 5x5. Strided and padded
-    	# convolutions are supported as well; see the docstring.
-		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=32, filter_size=(5,5),
+				network, num_filters=32, filter_size=(11, 11), stride=(4,4),
 				nonlinearity=lasagne.nonlinearities.rectify,
 				W=lasagne.init.GlorotUniform())
 	    # Expert note: Lasagne provides alternative convolutional layers that
@@ -343,88 +379,21 @@ class Worker():
 		network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
 
 	    # Another convolution with 32 5x5 kernels, and another 2x2 pooling:
-		# network = lasagne.layers.Conv2DLayer(
-		# 		network, num_filters=384, filter_size=(3, 3),
-		# 		nonlinearity=lasagne.nonlinearities.rectify)
-		# network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
+		network = lasagne.layers.Conv2DLayer(
+				network, num_filters=32, filter_size=(3, 3),
+				nonlinearity=lasagne.nonlinearities.rectify)
+		network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
 
 	    #  A fully-connected layer of 256 units with 50% dropout on its inputs:
 		network = lasagne.layers.DenseLayer(
 				lasagne.layers.dropout(network, p=.5),
-				num_units=256,
+				num_units=512,
 				nonlinearity=lasagne.nonlinearities.rectify)
 
     	# And, finally, the 10-unit output layer with 50% dropout on its inputs:
 		network = lasagne.layers.DenseLayer(
 				lasagne.layers.dropout(network, p=.5),
-				num_units=10,
+				num_units=2,
 				nonlinearity=lasagne.nonlinearities.softmax)
 
 		return network
-
-import sys
-import os
-import time
-def load_dataset():
-    # We first define a download function, supporting both Python 2 and 3.
-    if sys.version_info[0] == 2:
-        from urllib import urlretrieve
-    else:
-        from urllib.request import urlretrieve
-
-    def download(filename, source='http://yann.lecun.com/exdb/mnist/'):
-        print("Downloading %s" % filename)
-        urlretrieve(source + filename, filename)
-
-    # We then define functions for loading MNIST images and labels.
-    # For convenience, they also download the requested files if needed.
-    import gzip
-
-    def load_mnist_images(filename):
-        if not os.path.exists(filename):
-            download(filename)
-        # Read the inputs in Yann LeCun's binary format.
-        with gzip.open(filename, 'rb') as f:
-            data = np.frombuffer(f.read(), np.uint8, offset=16)
-        # The inputs are vectors now, we reshape them to monochrome 2D images,
-        # following the shape convention: (examples, channels, rows, columns)
-        data = data.reshape(-1, 1, 28, 28)
-        # The inputs come as bytes, we convert them to float32 in range [0,1].
-        # (Actually to range [0, 255/256], for compatibility to the version
-        # provided at http://deeplearning.net/data/mnist/mnist.pkl.gz.)
-        return data / np.float32(256)
-
-    def load_mnist_labels(filename):
-        if not os.path.exists(filename):
-            download(filename)
-        # Read the labels in Yann LeCun's binary format.
-        with gzip.open(filename, 'rb') as f:
-            data = np.frombuffer(f.read(), np.uint8, offset=8)
-        # The labels are vectors of integers now, that's exactly what we want.
-        return data
-
-    # We can now download and read the training and test set images and labels.
-    X_train = load_mnist_images('train-images-idx3-ubyte.gz')
-    y_train = load_mnist_labels('train-labels-idx1-ubyte.gz')
-    X_test = load_mnist_images('t10k-images-idx3-ubyte.gz')
-    y_test = load_mnist_labels('t10k-labels-idx1-ubyte.gz')
-
-    # We reserve the last 10000 training examples for validation.
-    X_train, X_val = X_train[:-10000], X_train[-10000:]
-    y_train, y_val = y_train[:-10000], y_train[-10000:]
-
-    # We just return all the arrays in order, as expected in main().
-    # (It doesn't matter how we do this as long as we can read them again.)
-    return X_train, y_train, X_val, y_val, X_test, y_test
-
-def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
-    assert len(inputs) == len(targets)
-    if shuffle:
-        indices = np.arange(len(inputs))
-        np.random.shuffle(indices)
-    for start_idx in range(0, len(inputs) - batchsize + 1, batchsize):
-        if shuffle:
-            excerpt = indices[start_idx:start_idx + batchsize]
-        else:
-            excerpt = slice(start_idx, start_idx + batchsize)
-        yield inputs[excerpt], targets[excerpt]

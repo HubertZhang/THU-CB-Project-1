@@ -28,6 +28,7 @@ class Dataset(slist.SList):
         data_item = DataItem(self.data_root, data_name)
         data_item.read_image()
         data_item.read_tag()
+        data_item.extend_image()
         return data_item
 
 
@@ -127,7 +128,7 @@ class DataItem():
         changes = [(0,0)]
 
         positive_set = []
-        limit = CONFIG.STEP * 2 + CONFIG.HALF_AREA_SIZE
+        limit = CONFIG.HALF_AREA_SIZE
         for change in changes:
             for x in self.tag:
                 if x[0]>=limit and x[0]<self.img_dim[0]-limit and x[1]>=limit and x[1]<self.img_dim[1]-limit:
@@ -158,6 +159,19 @@ class DataItem():
         #         pnt_y = pnt[1]-CONFIG.HALF_AREA_SIZE+j
         #         result[i][j] = self.image_data[pnt_x][pnt_y]
         # return result
+
+    def extend_image(self):
+        self.origin_image_data = self.image_data
+        self.origin_img_dim = self.img_dim
+        self.image_data = ones((self.img_dim[0]+2*CONFIG.HALF_AREA_SIZE, self.img_dim[1]+2*CONFIG.HALF_AREA_SIZE),dtype='float32')*average(self.origin_image_data)
+        self.tag = [(item[0]+CONFIG.HALF_AREA_SIZE, item[1]+CONFIG.HALF_AREA_SIZE) for item in self.tag]
+        # for i in range(len(self.image_data)):
+        #     for j in range(len(self.image_data[i])):
+        #         self.image_data[i][j] = self.origin_image_data[random.randint(0, self.img_dim[0]-1)][random.randint(0, self.img_dim[1]-1)]
+        for i in range(self.img_dim[0]):
+            for j in range(self.img_dim[1]):
+                self.image_data[i+CONFIG.HALF_AREA_SIZE][j+CONFIG.HALF_AREA_SIZE] = self.origin_image_data[i][j]
+        self.img_dim = (self.origin_img_dim[0]+2*CONFIG.HALF_AREA_SIZE, self.origin_img_dim[1]+2*CONFIG.HALF_AREA_SIZE)
 
     def generate_feature(self, dim_x, dim_y, step_x, step_y):
         def validate():

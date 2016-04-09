@@ -2,9 +2,19 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import logging
 
 import data_reader
 import worker
+import CONFIG
+
+logging.basicConfig(filename='app_info.log', level=logging.INFO)
+logging.info("Parameters:")
+logging.info("\tSTEP: {}".format(CONFIG.STEP))
+logging.info("\tAREA_SIZE: {}".format(CONFIG.AREA_SIZE))
+logging.info("\tTHRESHOLD: {}".format(CONFIG.THRESHOLD))
+logging.info("\tLEARNING_RATE: {}".format(CONFIG.LEARNING_RATE))
+logging.info("\tMOMENTUM: {}".format(CONFIG.MOMENTUM))
 
 if len(sys.argv) != 3:
 	print('Usage: python main.py <data_path> <output_path>')
@@ -27,6 +37,8 @@ os.chdir(output_path)
 # alg.main()
 alg = worker.Worker(training_data, testing_data)
 alg.main()
+# alg.load_model('model_2.npz')
+# alg.predict(alg.training_set[-1],'model_5.npz')
 # alg.main_minst()
 
 
