@@ -38,7 +38,7 @@ os.chdir(output_path)
 alg = worker.Worker(training_data, testing_data)
 alg.main()
 # alg.load_model('model_2.npz')
-# alg.predict(alg.training_set[-1],'model_5.npz')
+# alg.predict(alg.training_set[-1],'model_3.npz')
 # alg.main_minst()
 
 

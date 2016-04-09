@@ -1,12 +1,14 @@
 #!/usr/bin/python
 
-from numpy import *
+# from numpy import *
+import numpy as np
 import struct
 import os
 import matplotlib.pyplot as plt
-import random
+from scipy.ndimage.filters import gaussian_filter
 import scipy.spatial
 import slist
+import random
 import CONFIG
 
 class Dataset(slist.SList):
@@ -28,7 +30,7 @@ class Dataset(slist.SList):
         data_item = DataItem(self.data_root, data_name)
         data_item.read_image()
         data_item.read_tag()
-        data_item.extend_image()
+        # data_item.extend_image()
         return data_item
 
 
@@ -60,7 +62,7 @@ class DataItem():
                 type = 'unknown'  # should put a fail here
             input_image_dimension = (self.img_dim[1], self.img_dim[0])  # 2D images assumed
 
-            self.image_data = fromfile(file=input_image, dtype=imtype, count=self.img_dim[0] * self.img_dim[1]).reshape(input_image_dimension)
+            self.image_data = np.fromfile(file=input_image, dtype=imtype, count=self.img_dim[0] * self.img_dim[1]).reshape(input_image_dimension)
 
     def read_tag(self):
         with open(os.path.join(self.data_root, '{}_manual_lgc.star'.format(self.data_name)), 'r') as input_tag:
@@ -152,7 +154,7 @@ class DataItem():
 
     def get_window(self, pnt):
         return self.image_data[pnt[1]-CONFIG.HALF_AREA_SIZE:pnt[1]+CONFIG.HALF_AREA_SIZE+1, pnt[0]-CONFIG.HALF_AREA_SIZE:pnt[0]+CONFIG.HALF_AREA_SIZE+1]
-        # result = array([[0.0 for j in range(CONFIG.AREA_SIZE)] for i in range(CONFIG.AREA_SIZE)])
+        # result = np.array([[0.0 for j in range(CONFIG.AREA_SIZE)] for i in range(CONFIG.AREA_SIZE)])
         # for i in range(CONFIG.AREA_SIZE):
         #     pnt_x = pnt[0]-CONFIG.HALF_AREA_SIZE+i
         #     for j in range(CONFIG.AREA_SIZE):
@@ -163,14 +165,22 @@ class DataItem():
     def extend_image(self):
         self.origin_image_data = self.image_data
         self.origin_img_dim = self.img_dim
-        self.image_data = ones((self.img_dim[0]+2*CONFIG.HALF_AREA_SIZE, self.img_dim[1]+2*CONFIG.HALF_AREA_SIZE),dtype='float32')*average(self.origin_image_data)
+        # self.image_data = ones((self.img_dim[0]+2*CONFIG.HALF_AREA_SIZE, self.img_dim[1]+2*CONFIG.HALF_AREA_SIZE),dtype='float32')*average(self.origin_image_data)
+        self.image_data = np.random.randn(self.img_dim[0]+2*CONFIG.HALF_AREA_SIZE, self.img_dim[1]+2*CONFIG.HALF_AREA_SIZE).astype('float32')
+        self.image_data = np.std(self.origin_image_data) * self.image_data + np.average(self.origin_image_data)
         self.tag = [(item[0]+CONFIG.HALF_AREA_SIZE, item[1]+CONFIG.HALF_AREA_SIZE) for item in self.tag]
         # for i in range(len(self.image_data)):
         #     for j in range(len(self.image_data[i])):
         #         self.image_data[i][j] = self.origin_image_data[random.randint(0, self.img_dim[0]-1)][random.randint(0, self.img_dim[1]-1)]
-        for i in range(self.img_dim[0]):
-            for j in range(self.img_dim[1]):
-                self.image_data[i+CONFIG.HALF_AREA_SIZE][j+CONFIG.HALF_AREA_SIZE] = self.origin_image_data[i][j]
+        self.image_data[CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[0],CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[1]] = self.origin_image_data
+        for i in range(CONFIG.HALF_AREA_SIZE):
+            self.image_data[i,CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[1]] = self.origin_image_data[np.random.randint(0,self.img_dim[0]-1),0:self.img_dim[1]]
+            self.image_data[CONFIG.HALF_AREA_SIZE+self.img_dim[0]+i,CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[1]] = self.origin_image_data[np.random.randint(0,self.img_dim[0]-1),0:self.img_dim[1]]
+            self.image_data[CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[0],i] = self.origin_image_data[0:self.img_dim[0],np.random.randint(0,self.img_dim[1]-1)]
+            self.image_data[CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[0],CONFIG.HALF_AREA_SIZE+self.img_dim[1]+i] = self.origin_image_data[0:self.img_dim[0],np.random.randint(0,self.img_dim[1]-1)]
+        # for i in range(self.img_dim[0]):
+        #     for j in range(self.img_dim[1]):
+        #         self.image_data[i+CONFIG.HALF_AREA_SIZE][j+CONFIG.HALF_AREA_SIZE] = self.origin_image_data[i][j]
         self.img_dim = (self.origin_img_dim[0]+2*CONFIG.HALF_AREA_SIZE, self.origin_img_dim[1]+2*CONFIG.HALF_AREA_SIZE)
 
     def generate_feature(self, dim_x, dim_y, step_x, step_y):
@@ -183,7 +193,7 @@ class DataItem():
                 for j in range(pnt[1], pnt[1] + dim_y):
                     tmp_feature.append(self.image_data[i][j])
 
-            self.feature_set.append(array(tmp_feature))
+            self.feature_set.append(np.array(tmp_feature))
             self.label_set.append(self.contain_tag(range(pnt[0], pnt[0] + dim_x), range(pnt[1], pnt[1] + dim_y)))
 
         pnt = [0, 0]

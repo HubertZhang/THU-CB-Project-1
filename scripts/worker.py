@@ -16,7 +16,10 @@ import CONFIG
 class Worker():
 	def __init__(self, training_set, test_set):
 		self.training_set = training_set
+		for item in self.training_set:
+			item.extend_image()
 		self.test_set = test_set
+
 		for index in range(len(self.training_set)):
 			# self.training_set[index].image_data = gaussian_filter(self.training_set[index].image_data, 15)
 			self.training_set[index].image_data -= np.min(self.training_set[index].image_data)
@@ -26,10 +29,9 @@ class Worker():
 			self.test_set[index].image_data -= np.min(self.test_set[index].image_data)
 			self.test_set[index].image_data /= np.max(self.test_set[index].image_data)
 
-		self.LAMBDA = 1e-4
 		self.num_epochs = 100
-		self.TrainingData = range(0, int(0.8*len(training_set)))
-		self.ValidatingData = range(int(0.8*len(training_set)), len(training_set))
+		self.TrainingData = range(0, int(0.9*len(training_set)))
+		self.ValidatingData = range(int(0.9*len(training_set)), len(training_set))
 		# self.TrainingData = range(0, 10)
 		# self.ValidatingData = range(len(training_set)-6, len(training_set))
 		self.BATCH_SIZE = 500
@@ -50,6 +52,7 @@ class Worker():
     	# Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
 		params = lasagne.layers.get_all_params(self.network, trainable=True)
 		updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=CONFIG.LEARNING_RATE, momentum=CONFIG.MOMENTUM)
+		# updates = lasagne.updates.adadelta(loss, params, learning_rate=CONFIG.LEARNING_RATE)
 
 	    # Create a loss expression for validation/testing. The crucial difference
     	# here is that we do a deterministic forward pass through the network,
@@ -77,13 +80,13 @@ class Worker():
 		print("Starting training...")
 	    # We iterate over epochs:
 		for epoch in range(self.num_epochs):
-			if accuracy > 0.9 and diff_accuracy < 0:
-				print("Update Learning Rate.")
-				logging.info('Update Learning Rate.')
-				CONFIG.LEARNING_RATE = CONFIG.LEARNING_RATE / 2.
-				CONFIG.MOMENTUM = CONFIG.MOMENTUM / 2.
-				updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=CONFIG.LEARNING_RATE, momentum=CONFIG.MOMENTUM)
-				train_fn = theano.function([input_var, target_var], loss, updates=updates)
+			# if accuracy > 0.9 and diff_accuracy < 0:
+			# 	print("Update Learning Rate.")
+			# 	logging.info('Update Learning Rate.')
+			# 	CONFIG.LEARNING_RATE = CONFIG.LEARNING_RATE / 2.
+			# 	CONFIG.MOMENTUM = CONFIG.MOMENTUM / 2.
+			# 	updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=CONFIG.LEARNING_RATE, momentum=CONFIG.MOMENTUM)
+			# 	train_fn = theano.function([input_var, target_var], loss, updates=updates)
 
 			if epoch % 10 == 9:
 				np.savez('model_{}.npz'.format(epoch/10), *lasagne.layers.get_all_param_values(self.network))
@@ -362,7 +365,7 @@ class Worker():
 	    # Convolutional layer with 32 kernels of size 5x5. Strided and padded
     	# convolutions are supported as well; see the docstring.
 		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=32, filter_size=(11, 11), stride=(4,4),
+				network, num_filters=32, filter_size=(9, 9), stride=(4,4),
 				nonlinearity=lasagne.nonlinearities.rectify,
 				W=lasagne.init.GlorotUniform())
 	    # Expert note: Lasagne provides alternative convolutional layers that
@@ -387,7 +390,7 @@ class Worker():
 	    #  A fully-connected layer of 256 units with 50% dropout on its inputs:
 		network = lasagne.layers.DenseLayer(
 				lasagne.layers.dropout(network, p=.5),
-				num_units=512,
+				num_units=128,
 				nonlinearity=lasagne.nonlinearities.rectify)
 
     	# And, finally, the 10-unit output layer with 50% dropout on its inputs:
