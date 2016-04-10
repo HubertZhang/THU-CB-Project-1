@@ -173,11 +173,15 @@ class DataItem():
         #     for j in range(len(self.image_data[i])):
         #         self.image_data[i][j] = self.origin_image_data[random.randint(0, self.img_dim[0]-1)][random.randint(0, self.img_dim[1]-1)]
         self.image_data[CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[0],CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[1]] = self.origin_image_data
-        for i in range(CONFIG.HALF_AREA_SIZE):
-            self.image_data[i,CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[1]] = self.origin_image_data[np.random.randint(0,self.img_dim[0]-1),0:self.img_dim[1]]
-            self.image_data[CONFIG.HALF_AREA_SIZE+self.img_dim[0]+i,CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[1]] = self.origin_image_data[np.random.randint(0,self.img_dim[0]-1),0:self.img_dim[1]]
-            self.image_data[CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[0],i] = self.origin_image_data[0:self.img_dim[0],np.random.randint(0,self.img_dim[1]-1)]
-            self.image_data[CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[0],CONFIG.HALF_AREA_SIZE+self.img_dim[1]+i] = self.origin_image_data[0:self.img_dim[0],np.random.randint(0,self.img_dim[1]-1)]
+        self.image_data[0:CONFIG.HALF_AREA_SIZE,CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[1]] = np.flipud(self.origin_image_data[0:CONFIG.HALF_AREA_SIZE])
+        self.image_data[CONFIG.HALF_AREA_SIZE+self.img_dim[0]:self.img_dim[0]+2*CONFIG.HALF_AREA_SIZE,CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[1]] = np.flipud(self.origin_image_data[self.img_dim[0]-CONFIG.HALF_AREA_SIZE:self.img_dim[0]])
+        self.image_data[:,0:CONFIG.HALF_AREA_SIZE] = np.fliplr(self.image_data[:,CONFIG.HALF_AREA_SIZE:2*CONFIG.HALF_AREA_SIZE])
+        self.image_data[:,CONFIG.HALF_AREA_SIZE+self.img_dim[1]:self.img_dim[1]+2*CONFIG.HALF_AREA_SIZE] = np.fliplr(self.image_data[:,self.img_dim[1]:self.img_dim[1]+CONFIG.HALF_AREA_SIZE])
+        # for i in range(CONFIG.HALF_AREA_SIZE):
+            # self.image_data[i,CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[1]] = self.origin_image_data[np.random.randint(0,self.img_dim[0]-1),0:self.img_dim[1]]
+            # self.image_data[CONFIG.HALF_AREA_SIZE+self.img_dim[0]+i,CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[1]] = self.origin_image_data[np.random.randint(0,self.img_dim[0]-1),0:self.img_dim[1]]
+            # self.image_data[CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[0],i] = self.origin_image_data[0:self.img_dim[0],np.random.randint(0,self.img_dim[1]-1)]
+            # self.image_data[CONFIG.HALF_AREA_SIZE:CONFIG.HALF_AREA_SIZE+self.img_dim[0],CONFIG.HALF_AREA_SIZE+self.img_dim[1]+i] = self.origin_image_data[0:self.img_dim[0],np.random.randint(0,self.img_dim[1]-1)]
         # for i in range(self.img_dim[0]):
         #     for j in range(self.img_dim[1]):
         #         self.image_data[i+CONFIG.HALF_AREA_SIZE][j+CONFIG.HALF_AREA_SIZE] = self.origin_image_data[i][j]

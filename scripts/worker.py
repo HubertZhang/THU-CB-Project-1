@@ -16,8 +16,8 @@ import CONFIG
 class Worker():
 	def __init__(self, training_set, test_set):
 		self.training_set = training_set
-		for item in self.training_set:
-			item.extend_image()
+		# for item in self.training_set:
+		# 	item.extend_image()
 		self.test_set = test_set
 
 		for index in range(len(self.training_set)):
@@ -30,8 +30,8 @@ class Worker():
 			self.test_set[index].image_data /= np.max(self.test_set[index].image_data)
 
 		self.num_epochs = 100
-		self.TrainingData = range(0, int(0.9*len(training_set)))
-		self.ValidatingData = range(int(0.9*len(training_set)), len(training_set))
+		self.TrainingData = range(0, int(0.8*len(training_set)))
+		self.ValidatingData = range(int(0.8*len(training_set)), len(training_set))
 		# self.TrainingData = range(0, 10)
 		# self.ValidatingData = range(len(training_set)-6, len(training_set))
 		self.BATCH_SIZE = 500
@@ -51,8 +51,8 @@ class Worker():
 	    # parameters at each training step. Here, we'll use Stochastic Gradient
     	# Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
 		params = lasagne.layers.get_all_params(self.network, trainable=True)
-		updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=CONFIG.LEARNING_RATE, momentum=CONFIG.MOMENTUM)
-		# updates = lasagne.updates.adadelta(loss, params, learning_rate=CONFIG.LEARNING_RATE)
+		# updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=CONFIG.LEARNING_RATE, momentum=CONFIG.MOMENTUM)
+		updates = lasagne.updates.adadelta(loss, params, learning_rate=CONFIG.LEARNING_RATE)
 
 	    # Create a loss expression for validation/testing. The crucial difference
     	# here is that we do a deterministic forward pass through the network,
@@ -74,13 +74,13 @@ class Worker():
 	    # Compile a second function computing the validation loss and accuracy:
 		val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
 
-		accuracy = 0.
-		diff_accuracy = 0.
+		# accuracy = 0.
+		# diff_accuracy = 0.
 	    # Finally, launch the training loop.
 		print("Starting training...")
 	    # We iterate over epochs:
 		for epoch in range(self.num_epochs):
-			# if accuracy > 0.9 and diff_accuracy < 0:
+			# if epoch in [50, 75, 90]:
 			# 	print("Update Learning Rate.")
 			# 	logging.info('Update Learning Rate.')
 			# 	CONFIG.LEARNING_RATE = CONFIG.LEARNING_RATE / 2.
@@ -121,8 +121,8 @@ class Worker():
 				val_acc += acc * len(inputs)
 				val_batches += len(inputs)
 
-			diff_accuracy = val_acc / val_batches - accuracy
-			accuracy = val_acc / val_batches
+			# diff_accuracy = val_acc / val_batches - accuracy
+			# accuracy = val_acc / val_batches
       		# Then we print the results for this epoch:
 			print("Epoch {} of {} took {:.3f}s".format(epoch + 1, self.num_epochs, time.time() - start_time))
 			logging.info("Epoch {} of {} took {:.3f}s".format(epoch + 1, self.num_epochs, time.time() - start_time))
@@ -267,11 +267,10 @@ class Worker():
 				if (x-c_x)**2 + (y-c_y)**2 < (CONFIG.STEP*3)**2:
 					weight = grp[1]
 					new_cent = (float(x+c_x*weight)/float(weight+1), float(y+c_y*weight)/float(weight+1))
-					positive_group[index] = (new_cent, weight+1, grp[2]+pnt[1])
+					positive_group[index] = (new_cent, weight+1, grp[2]+pnt[1]-0.5)
 					flag = True
 			if not flag:
 				positive_group.append((pnt[0], 1, pnt[1]))
-
 
 		cnt_positive = [0 for i in range(10)]
 		cnt_positive_confid = [0 for i in range(50)]
@@ -295,7 +294,7 @@ class Worker():
 						for ind in flag:
 							tag_flag[wt][ind] = 1
 				for conf in range(50):
-					if grp[2] > conf*0.2:
+					if grp[2] > conf*0.05:
 						cnt_positive_confid[conf] += 1
 						for ind in flag:
 							tag_flag_confid[conf][ind] = 1
@@ -306,16 +305,39 @@ class Worker():
 			else:
 				neg_weight.append(grp[1])
 				neg_confid.append(grp[2])
+		f_score = []
 		for wt in range(10):
 			print("Weight Threshold {}:".format(wt))
-			print("\tPrecision: {:2f}".format(float(cnt_positive[wt])/float(len(filter(lambda x: x[1]>wt, positive_group)))))
-			print("\tRecall: {:2f}".format(np.sum(tag_flag[wt])/float(len(img.tag))))
+			precision = float(cnt_positive[wt])/float(len(filter(lambda x: x[1]>wt, positive_group)))
+			recall = np.sum(tag_flag[wt])/float(len(img.tag))
+			print("\tPrecision: {:.2f}".format(precision*100.))
+			print("\tRecall: {:.2f}".format(recall*100.))
+			f_score.append(2.*precision*recall/(precision+recall))
+			print("\tF-score: {:.5f}".format(2.*precision*recall/(precision+recall)))
 
+		fig = plt.figure()
+		plt.plot(np.arange(0,10,1), f_score)
+		plt.xlabel('Weight Threshold')
+		plt.ylabel('F-Score')
+		plt.savefig('f_score_weight.png')
+		plt.close(fig)
+
+		f_score = []
 		for conf in range(50):
-			print("Confidence Threshold {:2f}:".format(conf*0.2))
-			print("\tPrecision: {:2f}".format(float(cnt_positive_confid[conf])/float(len(filter(lambda x: x[2]>conf*0.2, positive_group)))))
-			print("\tRecall: {:2f}".format(np.sum(tag_flag_confid[conf])/float(len(img.tag))))
+			print("Confidence Threshold {:.2f}:".format(conf*0.05))
+			precision = float(cnt_positive_confid[conf])/float(len(filter(lambda x: x[2]>conf*0.05, positive_group)))
+			recall = np.sum(tag_flag_confid[conf])/float(len(img.tag))
+			print("\tPrecision: {:.2f}%".format(precision*100.))
+			print("\tRecall: {:.2f}%".format(recall*100.))
+			f_score.append(2.*precision*recall/(precision+recall))
+			print("\tF-score: {:.5f}".format(2.*precision*recall/(precision+recall)))
 
+		fig = plt.figure()
+		plt.plot(np.arange(0,2.5,0.05), f_score)
+		plt.xlabel('Confidence Threshold')
+		plt.ylabel('F-Score')
+		plt.savefig('f_score_confid.png')
+		plt.close(fig)
 
 		fig = plt.figure()
 		rects = []
@@ -332,16 +354,120 @@ class Worker():
 
 
 		fig = plt.figure()
-		plt.hist(pos_weight, facecolor='g', alpha=0.5)
-		plt.hist(neg_weight, facecolor='b', alpha=0.5)
+		plt.hist(pos_weight, 10, facecolor='g', alpha=0.5)
+		plt.hist(neg_weight, 10, facecolor='b', alpha=0.5)
 		plt.savefig('weight_hist.png')
 		plt.close(fig)
 
 		fig = plt.figure()
-		plt.hist(pos_confid, facecolor='g', alpha=0.5)
-		plt.hist(neg_confid, facecolor='b', alpha=0.5)
+		plt.hist(pos_confid, 50, facecolor='g', alpha=0.5)
+		plt.hist(neg_confid, 50, facecolor='b', alpha=0.5)
 		plt.savefig('confid_hist.png')
 		plt.close(fig)
+
+	def test_result(self, model_name):
+		for img in self.test_set:
+			img.extend_image()
+
+		input_var = T.tensor4('inputs')
+		target_var = T.ivector('targets')
+
+		self.network = self.build_cnn(input_var)
+		with np.load(model_name) as f:
+		    param_values = [f['arr_%d' % i] for i in range(len(f.files))]
+		lasagne.layers.set_all_param_values(self.network, param_values)
+		test_prediction = lasagne.layers.get_output(self.network, deterministic=True)
+		predict_fn = theano.function([input_var], test_prediction)
+
+		precision_log = [[0. for i in range(len(self.test_set))] for j in range(50)]
+		recall_log = [[0. for i in range(len(self.test_set))] for j in range(50)]
+		f_score_log = [[0. for i in range(len(self.test_set))] for j in range(50)]
+		for img_index, img in enumerate(self.test_set):
+			print("Process image {} of {}".format(img_index+1, len(self.test_set)))
+			input_pnts = []
+			for i in range(CONFIG.HALF_AREA_SIZE, img.img_dim[0]-CONFIG.HALF_AREA_SIZE, CONFIG.STEP):
+			# for i in range(1000, 1500, CONFIG.STEP):
+				for j in range(CONFIG.HALF_AREA_SIZE, img.img_dim[1]-CONFIG.HALF_AREA_SIZE, CONFIG.STEP):
+				#  for j in range(1000, 1500, CONFIG.STEP):
+					input_pnts.append((i,j))
+			print("Total input length: {}".format(len(input_pnts)))
+
+			pos_pnt = []
+			for index in range(0, len(input_pnts), self.BATCH_SIZE):
+				print 'Batch {}/{}'.format(index,len(input_pnts))
+				inputs = [img.get_window(item) for item in input_pnts[index:index+self.BATCH_SIZE]]
+				result = predict_fn(np.array(inputs).reshape(-1,1,CONFIG.AREA_SIZE,CONFIG.AREA_SIZE))
+				# print(result)
+				for tmp_index, tag in enumerate(result):
+					if np.argmax(tag) == 1:
+						pos_pnt.append((input_pnts[tmp_index+index], tag[1]))
+			print 'Positive Point: {}'.format(len(pos_pnt))
+
+			positive_group = []
+			for pnt in pos_pnt:
+				x, y = pnt[0]
+				flag = False
+				for index, grp in enumerate(positive_group):
+					c_x, c_y = grp[0]
+					if (x-c_x)**2 + (y-c_y)**2 < (CONFIG.STEP*3)**2:
+						weight = grp[1]
+						new_cent = (float(x+c_x*weight)/float(weight+1), float(y+c_y*weight)/float(weight+1))
+						positive_group[index] = (new_cent, weight+1, grp[2]+pnt[1]-0.5)
+						flag = True
+				if not flag:
+					positive_group.append((pnt[0], 1, pnt[1]))
+
+			cnt_positive_confid = [0 for i in range(50)]
+			tag_flag_confid = [[0 for i in range(len(img.tag))] for j in range(50)]
+
+			for grp in positive_group:
+				x, y = grp[0]
+				flag = []
+				for index, pnt in enumerate(img.tag):
+					if (x-pnt[0])**2 + (y-pnt[1])**2 < (CONFIG.THRESHOLD)**2:
+						flag.append(index)
+				if flag:
+					for conf in range(50):
+						if grp[2] > conf*0.05:
+							cnt_positive_confid[conf] += 1
+							for ind in flag:
+								tag_flag_confid[conf][ind] = 1
+
+			for conf in range(50):
+				print("Confidence Threshold {:.2f}:".format(conf*0.05))
+				total_num_grp = len(filter(lambda x: x[2]>conf*0.05, positive_group))
+				if total_num_grp != 0:
+					precision = float(cnt_positive_confid[conf])/float(total_num_grp)
+				else:
+					precision = 1e-10
+				recall = np.sum(tag_flag_confid[conf])/float(len(img.tag))
+				f_score = 2.*precision*recall/(precision+recall)
+				print("\tPrecision: {:.2f}%".format(precision*100.))
+				print("\tRecall: {:.2f}%".format(recall*100.))
+				print("\tF-score: {:.5f}".format(f_score))
+				precision_log[conf][img_index] = precision
+				recall_log[conf][img_index] = recall
+				f_score_log[conf][img_index] = f_score
+		print(precision_log)
+		print(recall_log)
+		print(f_score_log)
+
+		precision_result = []
+		recall_result = []
+		f_score_result = []
+		for index in range(50):
+			precision_result.append(np.average(precision_log[index]))
+			recall_result.append(np.average(recall_log[index]))
+			f_score_result.append(np.average(f_score_log[index]))
+		print('Maximum F-score: {}'.format(np.max(f_score_result)))
+		plt.figure()
+		ind = np.arange(0,2.5,0.05)
+		plt.plot(ind, precision_result, label='precision')
+		plt.plot(ind, recall_result, label='recall')
+		plt.plot(ind, f_score_result, label='f-score')
+		plt.legend()
+		plt.xlabel('Confidence Threshold')
+		plt.savefig('result.png')
 
 	def load_model(self, model_name):
 		input_var = T.tensor4('inputs')
@@ -365,7 +491,7 @@ class Worker():
 	    # Convolutional layer with 32 kernels of size 5x5. Strided and padded
     	# convolutions are supported as well; see the docstring.
 		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=32, filter_size=(9, 9), stride=(4,4),
+				network, num_filters=48, filter_size=(11, 11), stride=(4,4),
 				nonlinearity=lasagne.nonlinearities.rectify,
 				W=lasagne.init.GlorotUniform())
 	    # Expert note: Lasagne provides alternative convolutional layers that
@@ -377,20 +503,20 @@ class Worker():
 
 	    # Another convolution with 32 5x5 kernels, and another 2x2 pooling:
 		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=32, filter_size=(5, 5),
+				network, num_filters=128, filter_size=(5, 5),
 				nonlinearity=lasagne.nonlinearities.rectify)
 		network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
 
 	    # Another convolution with 32 5x5 kernels, and another 2x2 pooling:
 		network = lasagne.layers.Conv2DLayer(
-				network, num_filters=32, filter_size=(3, 3),
+				network, num_filters=197, filter_size=(3, 3),
 				nonlinearity=lasagne.nonlinearities.rectify)
 		network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
 
 	    #  A fully-connected layer of 256 units with 50% dropout on its inputs:
 		network = lasagne.layers.DenseLayer(
 				lasagne.layers.dropout(network, p=.5),
-				num_units=128,
+				num_units=512,
 				nonlinearity=lasagne.nonlinearities.rectify)
 
     	# And, finally, the 10-unit output layer with 50% dropout on its inputs:
