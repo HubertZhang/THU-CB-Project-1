@@ -1,0 +1,133 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amsfonts,amsthm,amssymb}
+\usepackage{fancyhdr}
+\usepackage{extramarks}
+\usepackage{chngpage}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{dsfont}
+\usepackage{hyperref}
+\usepackage{enumerate}
+\usepackage{color}
+\usepackage{datetime}
+
+\newdateformat{monthyeardate}{\monthname[\THEMONTH], \THEYEAR}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+
+% In case you need to adjust margins:
+\topmargin=-0.3in      %
+\oddsidemargin=0.25in      %
+\textwidth=6in        %
+\textheight=8.5in       %
+\headsep=0.25in         %
+
+\linespread{1.1}
+
+% Setup the header and footer
+\pagestyle{fancy}                                                       %
+\lhead{}                                                 %
+\chead{}  %
+\rhead{\firstxmark}                                                     %
+\lfoot{\lastxmark}                                                      %
+\cfoot{}                                                                %
+\rfoot{Page\ \thepage}                          %
+\renewcommand\headrulewidth{0.4pt}                                      %
+\renewcommand\footrulewidth{0.4pt}                                      %
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Make title
+\title{\textsc{Computational Biology}\\ \vspace{0.06in}{\bf\Large Project 1: Automated Particle Picking in Cryo-EM}}
+\author{\vspace{0.05in}\textbf{An Ju \qquad Yangkun Zhang \qquad Tianxiao Shen}\\Institute for Interdisciplinary Information Sciences}
+\date{\monthyeardate\today}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+\maketitle \thispagestyle{empty}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Begin edit from here
+
+\section{Introduction}
+This project is to pick particles from micrograph in cryo-electron microscopy (cryo-EM) \cite{liao2013structure}. Given a micrograph, our system will predict the center coordinates of particles in it.
+
+We address this problem in a two-step procedure: first, we scan the whole micrograph by a sliding window and judge whether it contains a particle or not \cite{langlois2014automated}; and then, for all the windows containing a particle, we compute their center and merge the ones nearby to get the final results.
+
+An Ju programmed the major part. Yangkun Zhang assisted in coding and did program optimization, including efficient GPU implementation. Tianxiao Shen was in charge of algorithm design, report and demo.
+
+\section{Algorithm}
+\subsection{Window Classification}
+To judge whether a window contains a particle or not is a binary classification problem. We use a convolutional neural network (CNN) to deal with this task, which is one of the most powerful machine learning algorithms for image classification \cite{krizhevsky2012imagenet} .
+
+\subsubsection{Preprocessing}
+\textcolor{red}{padding}
+
+We preprocess all the values to make them range between 0 and 1, by subtracting $\min$ and then dividing by $\max-\min$. We directly train our network on these values.
+
+\subsubsection{Network Architecture}
+Our network contains 5 learned layers---3 convolutional and 2 fully-connected. The convolutional layers have \textcolor{red}{?} kernels of size $\times$, \textcolor{red}{?} kernels of size $\times$, and \textcolor{red}{?} kernels of size $\times$ respectively. Each of them is followed by a max-pooling layer. The first fully-connected layer has \textcolor{red}{?} neurons, and the second has 2 neurons, corresponding to the two classes.
+
+We use Rectified Linear Units (ReLUs) nonlinearity, and the final layer is fed to a 2-way softmax to produce a Bernoulli distribution. We use the cross-entropy between the true and predicted distribution as our loss function. And we use \textcolor{red}{stochastic gradient descent (?)} with each micrograph as a batch to train our model.
+
+\subsubsection{Training Data}
+As the two classes are skewed---most windows do not contain a particle, we adopt a simple strategy to get balanced training data: all golden particles are used as positive cases (each particle determines a window by locating its center), and we randomly sample negative cases of the same amount.
+
+\subsection{Merge Neighboring Windows}
+A particle could be contained by multiple overlapping windows, and thus we need to merge them into a single one. For a window predicted to have a particle in it, we compute the coordinates of its center and find its nearest neighbor among all the particles picked so far. If the distance between them is less than a threshold $d$, we merge them in the center of mass way; otherwise we regard it as a new particle.
+
+We calculate the confidence of a particle by summing up the confidence of its components. If this value is greater than a threshold $C$, we report it as a final predicted particle.
+
+The overall procedure is described in Algorithm \ref{merge}.
+
+\begin{algorithm}
+\caption{Particle Picking}\label{merge}
+\begin{algorithmic}[1]
+\REQUIRE a micrograph $g$
+\ENSURE a list $l$ of particles
+\STATE $l,\hat l\leftarrow\emptyset$
+
+\FORALL {window $w$ in $g$}
+    \STATE $(p_0, p_1)\leftarrow$ CNN$(w)$
+    \IF {$p_1>p_0$}
+        \STATE $(x_w,y_w)\leftarrow$ center$(w)$
+        \STATE $(x,y,m,c)\leftarrow$ findNearestNeighbor$((x_w,y_w),\hat l)$
+        \IF {dist$\left((x_w,y_w),(x,y)\right)<d$}
+            \STATE $(x,y)\leftarrow (\frac{mx+x_w}{m+1}, \frac{my+y_w}{m+1})$
+            \STATE $(m,c)\leftarrow (m+1,c+p_1)$
+        \ELSE
+            \STATE $\hat l\leftarrow \hat l\cup\{(x_w,y_w,1,p_1)\}$
+        \ENDIF
+    \ENDIF
+\ENDFOR
+
+\FORALL {$(x,y,m,c) \in \hat l$}
+    \IF {$c > C$}
+        \STATE $l\leftarrow l\cup\{(x,y)\}$
+    \ENDIF
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}
+
+\section{Experiments}
+
+\subsection{Parameters Setting}
+
+\subsection{Results}
+
+\section*{Acknowledgments}
+We thank Zhipeng Jia for the helpful discussion with him.
+
+% End edit to here
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\bibliographystyle{abbrv}
+\bibliography{bibfile}
+
+\end{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
