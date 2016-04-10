@@ -35,17 +35,21 @@ class Worker():
 		# self.TrainingData = range(0, 10)
 		# self.ValidatingData = range(len(training_set)-6, len(training_set))
 		self.BATCH_SIZE = 500
+		self.input_var = T.tensor4('inputs')
 
-	def main(self):
+	def train_model(self, model_name = None):
 		print("WINDOW SIZE: {}".format(CONFIG.AREA_SIZE))
 		# Prepare Theano variables for inputs and targets
-		input_var = T.tensor4('inputs')
 		target_var = T.ivector('targets')
-
-		self.network = self.build_cnn(input_var)
+		self.network = self.build_cnn(self.input_var)
 		prediction = lasagne.layers.get_output(self.network)
 		loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
 		loss = loss.mean()#  + self.LAMBDA * lasagne.regularization.regularize_network_params(network, lasagne.regularization.l2)
+
+		if model_name is not None:
+			with np.load(model_name) as f:
+				param_values = [f['arr_%d' % i] for i in range(len(f.files))]
+			lasagne.layers.set_all_param_values(self.network, param_values)
 
 	    # Create update expressions for training, i.e., how to modify the
 	    # parameters at each training step. Here, we'll use Stochastic Gradient
@@ -58,6 +62,7 @@ class Worker():
     	# here is that we do a deterministic forward pass through the network,
     	# disabling dropout layers.
 		test_prediction = lasagne.layers.get_output(self.network, deterministic=True)
+		self.predict_fn = theano.function([self.input_var], test_prediction)
 		test_loss = lasagne.objectives.categorical_crossentropy(test_prediction, target_var)
 		test_loss = test_loss.mean()
     	# As a bonus, also create an expression for the classification accuracy:
@@ -66,13 +71,11 @@ class Worker():
 
     	# Compile a function performing a training step on a mini-batch (by giving
 	    # the updates dictionary) and returning the corresponding training loss:
-		train_fn = theano.function([input_var, target_var], loss, updates=updates)
-
-		result_fn = theano.function([input_var], test_prediction)
-		structure_fn = theano.function([], lasagne.layers.get_all_params(self.network))
+		train_fn = theano.function([self.input_var, target_var], loss, updates=updates)
 
 	    # Compile a second function computing the validation loss and accuracy:
-		val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
+		val_fn = theano.function([self.input_var, target_var], [test_loss, test_acc])
+
 
 		# accuracy = 0.
 		# diff_accuracy = 0.
@@ -96,7 +99,7 @@ class Worker():
 			start_time = time.time()
 			for batch in self.training_batch(self.TrainingData):
 				inputs, targets = batch
-				print('Batch size: {}'.format(len(inputs)))
+				# print('Batch size: {}'.format(len(inputs)))
 				# print inputs
 				# print targets
 				train_err += train_fn(inputs, targets) * len(inputs)
@@ -168,7 +171,7 @@ class Worker():
 			# 	while starting_pnt + self.BATCH_SIZE < len(inputs):
 			# 		yield np.array(inputs[starting_pnt:starting_pnt+self.BATCH_SIZE]).reshape(-1,1,CONFIG.AREA_SIZE,CONFIG.AREA_SIZE), np.array(targets[starting_pnt:starting_pnt+self.BATCH_SIZE],dtype='int32')
 			# 		starting_pnt += self.BATCH_SIZE
-			# 	
+			#
 			# 	yield np.array(inputs[starting_pnt:len(inputs)]).reshape(-1, 1, CONFIG.AREA_SIZE, CONFIG.AREA_SIZE), np.array(targets[starting_pnt:len(inputs)],dtype='int32')
 			# 	continue
 
@@ -200,21 +203,12 @@ class Worker():
 			while starting_pnt + self.BATCH_SIZE < len(inputs):
 				yield np.array(inputs[starting_pnt:starting_pnt+self.BATCH_SIZE]).reshape(-1,1,CONFIG.AREA_SIZE,CONFIG.AREA_SIZE), np.array(targets[starting_pnt:starting_pnt+self.BATCH_SIZE],dtype='int32')
 				starting_pnt += self.BATCH_SIZE
-				
+
 			yield np.array(inputs[starting_pnt:len(inputs)]).reshape(-1, 1, CONFIG.AREA_SIZE, CONFIG.AREA_SIZE), np.array(targets[starting_pnt:len(inputs)],dtype='int32')
 			continue
 
-	def predict(self, img, model_name):
-		img.extend_image()
-
-		input_var = T.tensor4('inputs')
-		target_var = T.ivector('targets')
-
-		self.network = self.build_cnn(input_var)
-		with np.load(model_name) as f:
-		    param_values = [f['arr_%d' % i] for i in range(len(f.files))]
-		lasagne.layers.set_all_param_values(self.network, param_values)
-
+	def predict(self, img):
+		# img.extend_image()
 		input_pnts = []
 		mat_dim = 0
 		for i in range(CONFIG.HALF_AREA_SIZE, img.img_dim[0]-CONFIG.HALF_AREA_SIZE, CONFIG.STEP):
@@ -224,40 +218,24 @@ class Worker():
 			# for j in range(1000, 1500, CONFIG.STEP):
 				input_pnts.append((i,j))
 		print("Total input length: {}".format(len(input_pnts)))
-
-		test_prediction = lasagne.layers.get_output(self.network, deterministic=True)
-		predict_fn = theano.function([input_var], test_prediction)
-
 		pos_pnt = []
+		strong = []
 		for index in range(0, len(input_pnts), self.BATCH_SIZE):
 			print 'Batch {}'.format(index+1)
 			inputs = [img.get_window(item) for item in input_pnts[index:index+self.BATCH_SIZE]]
-			result = predict_fn(np.array(inputs).reshape(-1,1,CONFIG.AREA_SIZE,CONFIG.AREA_SIZE))
+			result = self.predict_fn(np.array(inputs).reshape(-1,1,CONFIG.AREA_SIZE,CONFIG.AREA_SIZE))
 			# print(result)
 			for tmp_index, tag in enumerate(result):
+				strong.append(tag[1])
 				if np.argmax(tag) == 1:
 					pos_pnt.append((input_pnts[tmp_index+index], tag[1]))
+
 		print 'Positive Point: {}'.format(len(pos_pnt))
-		rects = []
-		for pnt in pos_pnt:
-			rects.append(plt.Circle(pnt[0], 20, facecolor=plt.cm.Greens(pnt[1]), alpha=0.3))
-			# rects.append(
-			# 	plt.Rectangle((pnt[0]-CONFIG.HALF_AREA_SIZE, pnt[1]-CONFIG.HALF_AREA_SIZE),
-			# 		CONFIG.AREA_SIZE, CONFIG.AREA_SIZE,
-			# 		facecolor='none', edgecolor='b', alpha=0.5))
-		for pnt in img.tag:
-			rects.append(
-				plt.Rectangle((pnt[0]-CONFIG.HALF_AREA_SIZE, pnt[1]-CONFIG.HALF_AREA_SIZE),
-					CONFIG.AREA_SIZE, CONFIG.AREA_SIZE,
-					facecolor='none', edgecolor='r', alpha=1))
-
-		fig = plt.figure()
-		plt.imshow(img.image_data, cmap=plt.cm.gray)
-		for rect in rects:
-			fig.add_subplot(111).add_artist(rect)
-		plt.savefig('window_predictions.png')
-		plt.close(fig)
-
+		if CONFIG.DEBUG:
+			strong = np.array(strong).reshape((mat_dim,mat_dim))
+			temp_file = open("prediction_{}.f".format(img.data_name), 'wb')
+			pickle.dump(strong, temp_file)
+			temp_file.close()
 		positive_group = []
 		for pnt in pos_pnt:
 			x, y = pnt[0]
@@ -272,136 +250,61 @@ class Worker():
 			if not flag:
 				positive_group.append((pnt[0], 1, pnt[1]))
 
-		cnt_positive = [0 for i in range(10)]
-		cnt_positive_confid = [0 for i in range(50)]
-		tag_flag = [[0 for i in range(len(img.tag))] for j in range(10)]
-		tag_flag_confid = [[0 for i in range(len(img.tag))] for j in range(50)]
-
-		pos_weight = []
-		pos_confid = []
-		neg_weight = []
-		neg_confid = []
+		result_pos = []
 		for grp in positive_group:
+			if grp[2] > 1.65:
+				result_pos.append(grp[0])
+
+		precision_num = 0
+		recall_set = set()
+		for grp in result_pos:
 			x, y = grp[0]
-			flag = []
+			flag = False
 			for index, pnt in enumerate(img.tag):
 				if (x-pnt[0])**2 + (y-pnt[1])**2 < (CONFIG.THRESHOLD)**2:
-					flag.append(index)
+					recall_set.add(index)
+					flag = True
 			if flag:
-				for wt in range(10):
-					if grp[1] > wt:
-						cnt_positive[wt] += 1
-						for ind in flag:
-							tag_flag[wt][ind] = 1
-				for conf in range(50):
-					if grp[2] > conf*0.05:
-						cnt_positive_confid[conf] += 1
-						for ind in flag:
-							tag_flag_confid[conf][ind] = 1
+				precision_num += 1
 
-				pos_weight.append(grp[1])
-				pos_confid.append(grp[2])
-				# cnt_positive += 1
-			else:
-				neg_weight.append(grp[1])
-				neg_confid.append(grp[2])
-		f_score = []
-		for wt in range(10):
-			print("Weight Threshold {}:".format(wt))
-			precision = float(cnt_positive[wt])/float(len(filter(lambda x: x[1]>wt, positive_group)))
-			recall = np.sum(tag_flag[wt])/float(len(img.tag))
-			print("\tPrecision: {:.2f}".format(precision*100.))
-			print("\tRecall: {:.2f}".format(recall*100.))
-			f_score.append(2.*precision*recall/(precision+recall))
-			print("\tF-score: {:.5f}".format(2.*precision*recall/(precision+recall)))
+		return (result_pos, precision_num/len(result_pos), len(recall_set)/len(img.tag))
 
-		fig = plt.figure()
-		plt.plot(np.arange(0,10,1), f_score)
-		plt.xlabel('Weight Threshold')
-		plt.ylabel('F-Score')
-		plt.savefig('f_score_weight.png')
-		plt.close(fig)
+	def predict_on_validation(self):
+		# for img in self.test_set:
+		# 	img.extend_image()
+		current_set = self.training_set[int(0.8*len(self.training_set)):]
 
-		f_score = []
-		for conf in range(50):
-			print("Confidence Threshold {:.2f}:".format(conf*0.05))
-			precision = float(cnt_positive_confid[conf])/float(len(filter(lambda x: x[2]>conf*0.05, positive_group)))
-			recall = np.sum(tag_flag_confid[conf])/float(len(img.tag))
-			print("\tPrecision: {:.2f}%".format(precision*100.))
-			print("\tRecall: {:.2f}%".format(recall*100.))
-			f_score.append(2.*precision*recall/(precision+recall))
-			print("\tF-score: {:.5f}".format(2.*precision*recall/(precision+recall)))
-
-		fig = plt.figure()
-		plt.plot(np.arange(0,2.5,0.05), f_score)
-		plt.xlabel('Confidence Threshold')
-		plt.ylabel('F-Score')
-		plt.savefig('f_score_confid.png')
-		plt.close(fig)
-
-		fig = plt.figure()
-		rects = []
-		for pnt in img.tag:
-			rects.append(plt.Circle(pnt, 20, facecolor='g', alpha=0.5))
-		for pnt in positive_group:
-			rects.append(plt.Circle(pnt[0], 20, facecolor='b', alpha=0.5))
-		fig = plt.figure()
-		plt.imshow(img.image_data, cmap=plt.cm.gray)
-		for rect in rects:
-			fig.add_subplot(111).add_artist(rect)
-		plt.savefig('group_prediction.png')
-		plt.close(fig)
-
-
-		fig = plt.figure()
-		plt.hist(pos_weight, 10, facecolor='g', alpha=0.5)
-		plt.hist(neg_weight, 10, facecolor='b', alpha=0.5)
-		plt.savefig('weight_hist.png')
-		plt.close(fig)
-
-		fig = plt.figure()
-		plt.hist(pos_confid, 50, facecolor='g', alpha=0.5)
-		plt.hist(neg_confid, 50, facecolor='b', alpha=0.5)
-		plt.savefig('confid_hist.png')
-		plt.close(fig)
-
-	def test_result(self, model_name):
-		for img in self.test_set:
-			img.extend_image()
-
-		input_var = T.tensor4('inputs')
-		target_var = T.ivector('targets')
-
-		self.network = self.build_cnn(input_var)
-		with np.load(model_name) as f:
-		    param_values = [f['arr_%d' % i] for i in range(len(f.files))]
-		lasagne.layers.set_all_param_values(self.network, param_values)
-		test_prediction = lasagne.layers.get_output(self.network, deterministic=True)
-		predict_fn = theano.function([input_var], test_prediction)
-
-		precision_log = [[0. for i in range(len(self.test_set))] for j in range(50)]
-		recall_log = [[0. for i in range(len(self.test_set))] for j in range(50)]
-		f_score_log = [[0. for i in range(len(self.test_set))] for j in range(50)]
-		for img_index, img in enumerate(self.test_set):
-			print("Process image {} of {}".format(img_index+1, len(self.test_set)))
+		precision_log = [[0. for i in range(len(current_set))] for j in range(50)]
+		recall_log = [[0. for i in range(len(current_set))] for j in range(50)]
+		f_score_log = [[0. for i in range(len(current_set))] for j in range(50)]
+		for img_index, img in enumerate(current_set):
+			print("Process image {} of {}".format(img_index+1, len(current_set)))
 			input_pnts = []
+			mat_dim = 0
 			for i in range(CONFIG.HALF_AREA_SIZE, img.img_dim[0]-CONFIG.HALF_AREA_SIZE, CONFIG.STEP):
 			# for i in range(1000, 1500, CONFIG.STEP):
+				mat_dim += 1
 				for j in range(CONFIG.HALF_AREA_SIZE, img.img_dim[1]-CONFIG.HALF_AREA_SIZE, CONFIG.STEP):
 				#  for j in range(1000, 1500, CONFIG.STEP):
 					input_pnts.append((i,j))
 			print("Total input length: {}".format(len(input_pnts)))
 
 			pos_pnt = []
+			strong = []
 			for index in range(0, len(input_pnts), self.BATCH_SIZE):
 				print 'Batch {}/{}'.format(index,len(input_pnts))
 				inputs = [img.get_window(item) for item in input_pnts[index:index+self.BATCH_SIZE]]
-				result = predict_fn(np.array(inputs).reshape(-1,1,CONFIG.AREA_SIZE,CONFIG.AREA_SIZE))
+				result = self.predict_fn(np.array(inputs).reshape(-1,1,CONFIG.AREA_SIZE,CONFIG.AREA_SIZE))
 				# print(result)
 				for tmp_index, tag in enumerate(result):
+					strong.append(tag[1])
 					if np.argmax(tag) == 1:
 						pos_pnt.append((input_pnts[tmp_index+index], tag[1]))
 			print 'Positive Point: {}'.format(len(pos_pnt))
+			strong = np.array(strong).reshape((mat_dim,mat_dim))
+			temp_file = open("prediction_{}.f".format(img.data_name), 'wb')
+			pickle.dump(strong, temp_file)
+			temp_file.close()
 
 			positive_group = []
 			for pnt in pos_pnt:
@@ -459,6 +362,7 @@ class Worker():
 			precision_result.append(np.average(precision_log[index]))
 			recall_result.append(np.average(recall_log[index]))
 			f_score_result.append(np.average(f_score_log[index]))
+
 		print('Maximum F-score: {}'.format(np.max(f_score_result)))
 		plt.figure()
 		ind = np.arange(0,2.5,0.05)
@@ -470,22 +374,21 @@ class Worker():
 		plt.savefig('result.png')
 
 	def load_model(self, model_name):
-		input_var = T.tensor4('inputs')
-		target_var = T.ivector('targets')
-
-		self.network = self.build_cnn(input_var)
+		self.network = self.build_cnn(self.input_var)
 		with np.load(model_name) as f:
-		    param_values = [f['arr_%d' % i] for i in range(len(f.files))]
+			param_values = [f['arr_%d' % i] for i in range(len(f.files))]
 		lasagne.layers.set_all_param_values(self.network, param_values)
+		test_prediction = lasagne.layers.get_output(self.network, deterministic=True)
+		self.predict_fn = theano.function([self.input_var], test_prediction)
 
 	def build_cnn(self, input_var=None):
-	    # As a third model, we'll create a CNN of two convolution + pooling stages
+		# As a third model, we'll create a CNN of two convolution + pooling stages
     	# and a fully-connected hidden layer in front of the output layer.
 
 	    # Input layer, as usual:
 		network = lasagne.layers.InputLayer(shape=(None, 1, CONFIG.AREA_SIZE, CONFIG.AREA_SIZE),
         	                                input_var=input_var)
-	    # This time we do not apply input dropout, as it tends to work less well
+		# This time we do not apply input dropout, as it tends to work less well
     	# for convolutional layers.
 
 	    # Convolutional layer with 32 kernels of size 5x5. Strided and padded

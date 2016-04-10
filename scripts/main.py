@@ -37,9 +37,10 @@ os.chdir(output_path)
 # alg.main()
 alg = worker.Worker(training_data, testing_data)
 # alg.main()
-# alg.load_model('model_2.npz')
-# alg.predict(alg.training_set[-1],'model.npz')
-alg.test_result('model.npz')
+alg.load_model('model.npz')
+result = alg.predict(alg.test_set[-1])
+print (result)
+# alg.test_result('model.npz')
 # alg.main_minst()
 
 
