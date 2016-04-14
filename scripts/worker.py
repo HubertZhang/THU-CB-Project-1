@@ -34,7 +34,7 @@ class Worker():
 		self.ValidatingData = range(int(0.8*len(training_set)), len(training_set))
 		# self.TrainingData = range(0, 10)
 		# self.ValidatingData = range(len(training_set)-6, len(training_set))
-		self.BATCH_SIZE = 500
+		self.BATCH_SIZE = CONFIG.BATCH_SIZE
 		self.input_var = T.tensor4('inputs')
 
 	def train_model(self, model_name = None):
@@ -252,13 +252,13 @@ class Worker():
 
 		result_pos = []
 		for grp in positive_group:
-			if grp[2] > 1.65:
+			if grp[2] > CONFIG.CONFIDENCE_THRESHOLD:
 				result_pos.append(grp[0])
 
 		precision_num = 0
 		recall_set = set()
 		for grp in result_pos:
-			x, y = grp[0]
+			x, y = grp
 			flag = False
 			for index, pnt in enumerate(img.tag):
 				if (x-pnt[0])**2 + (y-pnt[1])**2 < (CONFIG.THRESHOLD)**2:
@@ -267,7 +267,7 @@ class Worker():
 			if flag:
 				precision_num += 1
 
-		return (result_pos, precision_num/len(result_pos), len(recall_set)/len(img.tag))
+		return (result_pos, float(precision_num)/len(result_pos), float(len(recall_set))/len(img.tag))
 
 	def predict_on_validation(self):
 		# for img in self.test_set:

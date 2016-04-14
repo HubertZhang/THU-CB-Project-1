@@ -33,15 +33,14 @@ if not os.path.isdir(output_path):
 	os.mkdir(output_path)
 
 os.chdir(output_path)
-# alg = analyzer.Analyzer(training_data, testing_data)
-# alg.main()
+
 alg = worker.Worker(training_data, testing_data)
-# alg.main()
+# To train the model, please uncomment following line
+# alg.train_model()
+
 alg.load_model('model.npz')
 result = alg.predict(alg.test_set[-1])
 print (result)
-# alg.test_result('model.npz')
-# alg.main_minst()
 
 
 def print_image(img_mat, fig_name):
